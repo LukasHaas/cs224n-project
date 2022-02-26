@@ -11,7 +11,6 @@ def compute_binary_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     logits, labels = eval_pred.predictions, eval_pred.label_ids
     predictions = np.argmax(logits, axis=-1)
-    print(predictions)
     eval_dict = {
         'precision': precision_score(labels, predictions, average='macro'),
         'recall': recall_score(labels, predictions, average='macro'),
@@ -26,7 +25,6 @@ def compute_multilabel_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     logits, labels = eval_pred.predictions, eval_pred.label_ids
     predictions = np.round(sigmoid(logits))
-    print(predictions)
     eval_dict = {
         'precision_micro': precision_score(labels, predictions, average='micro'),
         'recall_micro': recall_score(labels, predictions, average='micro'),

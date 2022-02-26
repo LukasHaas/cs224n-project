@@ -19,7 +19,7 @@ def __to_one_hot(example: Dict, mapping: Dict) -> Dict:
     Returns:
         Dict: one hot encoded labels.
     """
-    indices = [mapping[y] for y in example['articles']]
+    indices = [mapping[y] for y in example['articles'] if y in mapping]
     one_hots = np.zeros(len(mapping.keys()))
     one_hots[indices] = 1
     return {
@@ -59,6 +59,7 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
         dataset = dataset.map(__merge_facts)
     
     if objective == 'multilabel':
+        dataset = dataset.remove_columns(['labels'])
         train_labels = dataset['train']['articles']
         train_labels = set([x for xs in train_labels for x in xs])
         mapping = {x: i for i, x in enumerate(sorted(train_labels))}

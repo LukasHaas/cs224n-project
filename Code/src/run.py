@@ -28,7 +28,7 @@ argp.add_argument('-s', '--sample',
     help='How many examples to sample for training.',
     default=None)
 argp.add_argument('-e', '--evaluate', help='Set flag to evaluate on test set.',
-                  action='store_true', default=True)
+                  action='store_true', default=False)
 args = argp.parse_args()
 
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
