@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import torch
 from typing import Dict
@@ -5,6 +6,7 @@ from functools import partial
 from datasets import DatasetDict
 from transformers import AutoTokenizer
 
+logger = logging.getLogger('preprocessing')
 OBJECTIVES = ['binary', 'multilabel']
 
 def __to_one_hot(example: Dict, mapping: Dict) -> Dict:
@@ -37,19 +39,21 @@ def __merge_facts(example: Dict) -> Dict:
         'facts': ' '.join(example['facts'])
     }
   
-def preprocess_dataset(dataset: DatasetDict, objective: str,
+def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
                        merge_facts=False) -> DatasetDict:
     """Preprocesses dataset.
 
     Args:
         dataset (DatasetDict): dataset.
         objective (str): either binary or multilabel.
+        objective (str): name of Huggingface tokenizer.
         merge_facts (bool, optional): whether all facts in case should be
             merged to a single string. Defaults to False.
 
     Returns:
         DatasetDict: preprocessed dataset.
     """
+    logger.warning(f'Preprocessing dataset for {objective} classification objective.')
     assert objective in OBJECTIVES, f'Objective must be one of {OBJECTIVES}.'
     if merge_facts:
         dataset = dataset.map(__merge_facts)
@@ -60,7 +64,10 @@ def preprocess_dataset(dataset: DatasetDict, objective: str,
         mapping = {x: i for i, x in enumerate(sorted(train_labels))}
         one_hot_encode = partial(__to_one_hot, mapping=mapping)
         dataset = dataset.map(one_hot_encode)
-    
+
+    dataset = tokenize(dataset, tokenizer)
+    dataset.set_format('torch')
+    dataset = dataset.remove_columns(['articles', 'ids'])
     return dataset
 
 def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
@@ -80,20 +87,19 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
     Returns:
         DatasetDict: tokenized dataset.
     """
+    logger.warning(f'Tokenizing dataset using {tokenizer} tokenizer.')
     tokenize = AutoTokenizer.from_pretrained(tokenizer)
     dataset = dataset.map(
                lambda x: tokenize(x['facts'], 
-                padding=padding, 
-                truncation=truncation,
-                max_length=max_length),
+                    padding=padding, 
+                    truncation=truncation,
+                    max_length=max_length),
                 batched=True,
                 batch_size=16
               )
     if remove_text:
         dataset = dataset.remove_columns(['facts'])
     
-    dataset = dataset.remove_columns(['articles', 'ids'])
-    dataset = dataset.set_format('torch')
     return dataset
     
 

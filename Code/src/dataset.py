@@ -1,9 +1,13 @@
 import os
 import json
+import logging
 from glob import glob
 import pandas as pd
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
+
+# Initialize Logger
+logger = logging.Logger('dataset')
 
 def __process_echr_dataset(path: str) -> Dataset:
     """Processes a split of the ECHR dataset.
@@ -51,20 +55,24 @@ def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True, see
     Returns:
         DatasetDict: ECHR dataset.
     """
+    logger.warning(f'Loading dataset from path: {path}')
     train = __process_echr_dataset(f'{path}/EN_train')
     val = __process_echr_dataset(f'{path}/EN_dev')
     test = __process_echr_dataset(f'{path}/EN_test')
     splits = [train, val, test]
+    logger.warning('Loaded train, val, and test splits.')
 
     if train.num_rows == 0:
-      raise Exception('Dataset is empty.')
+        raise Exception('Dataset is empty.')
 
     if shuffle:
-      splits = [x.shuffle(seed=seed) for x in splits]
+        splits = [x.shuffle(seed=seed) for x in splits]
+        logger.info('Shuffled dataset.')
 
     if n_subset:
-      splits = [x.select(range(n_subset)) for x in splits]
+        splits = [x.select(range(n_subset)) for x in splits]
 
+    logger.warning(f'Train split size: {train.num_rows}')
     echr_dataset = DatasetDict(
         train=splits[0],
         val=splits[1],
