@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('train')
 
 DEFAULT_TRAIN_ARGS = TrainingArguments(
+    output_dir='model_outputs',
     per_device_train_batch_size=4,
     per_device_eval_batch_size=4,
     num_train_epochs=10,
@@ -45,8 +46,8 @@ def finetune_model(name: str, dataset: DatasetDict, output: str, log: bool=True,
 
     logger.warning(f'Downloading model: {name}.')
     model = AutoModelForSequenceClassification.from_pretrained(name, num_labels=n_train_labels)
-    
-    train_args.output_dir = output
+
+    train_args.__setattr__('output_dir', output)
     trainer = __generate_trainer(dataset, model, train_args)
 
     if log:

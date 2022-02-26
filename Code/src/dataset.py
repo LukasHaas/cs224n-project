@@ -72,7 +72,7 @@ def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True, see
     if n_subset:
         splits = [x.select(range(n_subset)) for x in splits]
 
-    logger.warning(f'Train split size: {train.num_rows}')
+    logger.warning(f'Train split size: {splits[0].num_rows}')
     echr_dataset = DatasetDict(
         train=splits[0],
         val=splits[1],

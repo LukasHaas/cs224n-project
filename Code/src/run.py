@@ -24,7 +24,9 @@ argp.add_argument('--objective',
 argp.add_argument('-o', '--output', 
     help='Model output path.',
     default='model_outputs')
-)
+argp.add_argument('-s', '--sample', 
+    help='How many examples to sample for training.',
+    default=None)
 argp.add_argument('-e', '--evaluate', help='Set flag to evaluate on test set.',
                   action='store_true', default=True)
 args = argp.parse_args()
@@ -32,12 +34,12 @@ args = argp.parse_args()
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
 
 if args.function == 'finetune':
-    dataset = generate_echr_dataset(args.data)
+    dataset = generate_echr_dataset(args.data, n_subset=int(args.sample))
     dataset = preprocess_dataset(dataset, args.objective, args.name, 'hier' not in args.name)
     model = finetune_model(args.name, dataset, log=True, early_stopping=2, output=args.output)
 
 elif args.functon == 'load':
-    dataset = generate_echr_dataset(args.data)
+    dataset = generate_echr_dataset(args.data, n_subset=int(args.sample))
     dataset = preprocess_dataset(dataset, args.objective, args.name, 'hier' not in args.name)
     model = load_model(args.name)
 
