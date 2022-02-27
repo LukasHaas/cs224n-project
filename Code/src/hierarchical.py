@@ -48,7 +48,7 @@ class PositionalEncoding(nn.Module):
         # Residual connection + positional encoding
         return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
  
- class HierarchicalModel(nn.Module):
+class HierarchicalModel(nn.Module):
     def __init__(self, base_model: nn.Module, num_labels: int=2, max_parags: int=64, max_parag_length: int=128,
                  hier_layers: int=2, freeze_base: bool=False):
         """A hierarchical model using a transformer-based base model as a base.
@@ -90,7 +90,19 @@ class PositionalEncoding(nn.Module):
         # Classification prediction head
         self.cls_head = nn.Linear(base_model.config.hidden_size, num_labels)
 
-    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, paragraph_attention_mask=None, **kwargs):
+    def forward(self, paragraph_attention_mask, input_ids=None, attention_mask=None, 
+                token_type_ids=None, **kwargs) -> Tensor:
+        """_summary_
+
+        Args:
+            input_ids (_type_, optional): _description_. Defaults to None.
+            attention_mask (_type_, optional): _description_. Defaults to None.
+            token_type_ids (_type_, optional): _description_. Defaults to None.
+            paragraph_attention_mask (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            Tensor: _description_
+        """
 
         # Hypothetical Example
         # Batch of 10 paragraphs: (batch_size, n_paragraphs, max_parag_length) --> (10, 64, 128)
@@ -104,20 +116,23 @@ class PositionalEncoding(nn.Module):
             token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1))
 
         # Encode sentences with BERT --> (640, 768)
-        paragraph_embeddings = self.encoder(input_ids=input_ids_reshape,
-                                            attention_mask=attention_mask_reshape,
-                                            token_type_ids=token_type_ids_reshape).pooler_output
+        paragraph_embeddings = self.base_model(input_ids=input_ids_reshape,
+                                               attention_mask=attention_mask_reshape,
+                                               token_type_ids=token_type_ids_reshape).pooler_output
 
         # Reshape back to (batch_size, n_paragraphs, output_size) --> (10, 64, 768)
         paragraph_embeddings = paragraph_embeddings.contiguous().view(input_ids.size(0), self.max_parags, self.hidden_size)
-
-        # ADD MASKING FOR PARAGRAPHS
         
         # Adding positional encoding for paragraphs
         paragraph_embeddings = self.pos_encoder(paragraph_embeddings)
 
         # Compute case embeddings --> (10, 768)
-        case_embeddings = self.hier_model(paragraph_embeddings)
+        padding_mask = (paragraph_attention_mask == 0)
+        case_embeddings = self.hier_model(paragraph_embeddings,
+                                          src_key_padding_mask=padding_mask)
+        
+        # Pool case embeddings (choose first embedding -> CLS token) NOTE: Experiment with different pooling strategies
+        case_embeddings = case_embeddings[:, 0]
 
         # Linear transform --> (10, num_labels)
         logits = self.cls_head(case_embeddings)
