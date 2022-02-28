@@ -2,6 +2,7 @@ import math
 import numpy as np
 import torch
 from torch import nn, Tensor
+from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
 
 class PositionalEncoding(nn.Module):
     def __init__(self, dim_model: int, dropout_p: float = 0.1, max_len: int=1024):
@@ -49,7 +50,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
  
 class HierarchicalModel(nn.Module):
-    def __init__(self, base_model: nn.Module, num_labels: int=2, max_parags: int=64, max_parag_length: int=128,
+    def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=64, max_parag_length: int=128,
                  hier_layers: int=2, freeze_base: bool=False):
         """A hierarchical model using a transformer-based base model as a base.
 
@@ -90,30 +91,29 @@ class HierarchicalModel(nn.Module):
         # Classification prediction head
         self.cls_head = nn.Linear(base_model.config.hidden_size, num_labels)
 
-    def forward(self, paragraph_attention_mask, input_ids=None, attention_mask=None, 
-                token_type_ids=None, **kwargs) -> Tensor:
-        """_summary_
+    def forward(self, paragraph_attention_mask: Tensor, input_ids: Tensor, attention_mask: Tensor, 
+                token_type_ids: Tensor, labels: Tensor) -> Tensor:
+        """Computes a forward pass through the model.
 
         Args:
-            input_ids (_type_, optional): _description_. Defaults to None.
-            attention_mask (_type_, optional): _description_. Defaults to None.
-            token_type_ids (_type_, optional): _description_. Defaults to None.
-            paragraph_attention_mask (_type_, optional): _description_. Defaults to None.
+            paragraph_attention_mask (Tensor): attention mask indicating relevant paragph indices.
+            input_ids (Tensor, optional): token ids for base model.
+            attention_mask (Tensor, optional): attention mask for base model.
+            token_type_ids (Tensor, optional): mask indicating special tokens for base model.
 
         Returns:
-            Tensor: _description_
-        """
-
+            Tensor: logits of hierarchical model.
+        """        
         # Hypothetical Example
         # Batch of 10 paragraphs: (batch_size, n_paragraphs, max_parag_length) --> (10, 64, 128)
         # If i.e using BERT as encoder: 768 hidden units
 
         # Combine first two dimensions to feed through base model (batch_size * n_paragraphs, max_parag_length) --> (640, 128)
-        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1))
-        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1))
+        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor)
+        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor)
         token_type_ids_reshape = None
         if token_type_ids is not None:
-            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1))
+            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor)
 
         # Encode sentences with BERT --> (640, 768)
         paragraph_embeddings = self.base_model(input_ids=input_ids_reshape,
@@ -136,4 +136,12 @@ class HierarchicalModel(nn.Module):
 
         # Linear transform --> (10, num_labels)
         logits = self.cls_head(case_embeddings)
-        return logits
+
+        # Generate output
+        output = BaseModelOutputWithPoolingAndCrossAttentions(case_embeddings, logits)
+        
+        # Compute Loss
+        loss_fnc = nn.BCEWithLogitsLoss()
+        loss = loss_fnc(logits, labels)
+
+        return loss, output

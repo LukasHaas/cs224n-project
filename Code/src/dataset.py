@@ -2,9 +2,11 @@ import os
 import json
 import logging
 from glob import glob
+from typing import List
 import pandas as pd
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
+import torch
 
 # Initialize Logger
 logger = logging.Logger('dataset')
@@ -39,7 +41,8 @@ def __process_echr_dataset(path: str) -> Dataset:
     custom_dataset = Dataset.from_pandas(df)
     return custom_dataset
 
-def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True, seed: int=1111) -> DatasetDict:
+def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True,
+                          seed: int=1111) -> DatasetDict:
     """Generates the Chalkidis 2019 ECHR dataset.
 
     Args:
@@ -79,3 +82,37 @@ def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True, see
         test=splits[2]
     )
     return echr_dataset
+
+class HierarchicalDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset: Dataset):
+        self.input_ids = self.__stack_tensors__(dataset['input_ids'])
+        self.token_type_ids = self.__stack_tensors__(dataset['token_type_ids'])
+        self.attention_mask = self.__stack_tensors__(dataset['attention_mask'])
+        self.paragraph_attention_mask = dataset['paragraph_attention_mask']
+        self.labels = dataset['labels']
+
+    def __len__(self):
+        return self.labels.size()[0]
+    
+    def __stack_tensors__(self, feature: List):
+        all_data = []
+        for example in feature:
+            all_data.append(torch.stack(example))
+        return torch.stack(all_data)
+
+    def __getitem__(self, idx):
+        sample_dict = {
+            'input_ids': self.input_ids[idx],
+            'token_type_ids': self.token_type_ids[idx],
+            'attention_mask': self.attention_mask[idx],
+            'paragraph_attention_mask': self.paragraph_attention_mask[idx],
+            'labels': self.labels[idx]
+        }
+        return sample_dict
+
+    # print(dataset['train'])
+    # print(dataset['train']['labels'])
+    # print(dataset['train']['paragraph_attention_mask'])
+    # print(dataset['train']['input_ids'])
+    # print(dataset['train']['token_type_ids'])
+    # print(dataset['train']['attention_mask'])

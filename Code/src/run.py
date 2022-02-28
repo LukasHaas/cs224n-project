@@ -29,14 +29,18 @@ argp.add_argument('-s', '--sample',
     default=None)
 argp.add_argument('-e', '--evaluate', help='Set flag to evaluate on test set.',
                   action='store_true', default=False)
+argp.add_argument('--hierarchical', help='Set flag to use hierarchical model version.',
+                  action='store_true', default=False)
 args = argp.parse_args()
 
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
 
 if args.function == 'finetune':
     dataset = generate_echr_dataset(args.data, n_subset=int(args.sample))
-    dataset = preprocess_dataset(dataset, args.objective, args.name, 'hier' not in args.name)
-    model = finetune_model(args.name, dataset, log=True, early_stopping=2, output=args.output)
+
+    max_len = 128 if args.hierarchical else 512
+    dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraph_len=max_len)
+    model = finetune_model(args.name, dataset, args.hierarchical, args.output, 64, max_len)
 
 elif args.functon == 'load':
     dataset = generate_echr_dataset(args.data, n_subset=int(args.sample))
