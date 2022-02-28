@@ -35,16 +35,17 @@ def compute_multilabel_metrics(eval_pred):
     }
     return eval_dict
 
-def evaluate(model: Any, dataset: DatasetDict):
+def evaluate(model: Any, dataset: Any, hierarchical: bool):
     """Evaluates model on test dataset.
 
     Args:
         model (Any): trained pytorch model.
         dataset (DatasetDict): dataset.
+        hierarchical (bool) if using hierarchical model.
     """
     logger.warning('Evaluating on test set.')
-    predictions = predict(model, dataset)
-    train_labels = dataset['train']['labels']
-    eval_fnc = compute_binary_metrics if train_labels.dim() == 1 else compute_multilabel_metrics
+    predictions = predict(model, dataset['test'], hierarchical)
+    train_labels = dataset['train'][0]['labels']
+    eval_fnc = compute_binary_metrics if train_labels.dim() == 0 else compute_multilabel_metrics
     evalutation = eval_fnc(predictions)
     print(evalutation)

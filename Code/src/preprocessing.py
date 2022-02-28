@@ -99,36 +99,6 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
         
     return dataset
 
-def stack_tensors(datasets: DatasetDict) -> DatasetDict:
-    new_dataset = []
-    print(len(datasets['val']['input_ids'][0][0]))
-
-    for data_type in ['train', 'val', 'test']:
-        dataset = {
-            'paragraph_attention_mask': datasets[data_type]['paragraph_attention_mask'] ,
-            'labels': datasets[data_type]['labels'] 
-        }
-
-        for col in ['input_ids', 'token_type_ids', 'attention_mask']:
-            print(data_type, col, '\n----------------')
-            stacked_tensors = []
-            for tensors in datasets[data_type][col]:
-                stacked_tensors.append(torch.stack(tensors))
-
-            for tensor in stacked_tensors:
-                print(tensor.size())
-            dataset[col] = torch.stack(stacked_tensors)
-
-        new_dataset.append(Dataset.from_dict(dataset))
-
-    new_dataset = DatasetDict(
-        train=new_dataset[0],
-        val=new_dataset[1],
-        test=new_dataset[2]
-    )
-
-    return new_dataset
-
 def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer) -> DatasetDict:
     """Tokenizes hierarchical datasets.
 

@@ -1,5 +1,6 @@
 from transformers import AutoModelForSequenceClassification, Trainer
 from datasets import Dataset
+from dataset import HierarchicalDataset
 from trainers import MultilabelTrainer 
 from typing import Tuple, Any
 
@@ -15,19 +16,21 @@ def load_model(path: str) -> AutoModelForSequenceClassification:
     model = AutoModelForSequenceClassification.from_pretrained(path)
     return model
 
-def predict(model: str, dataset: Dataset) -> Tuple:
+def predict(model: str, dataset: Dataset, hierarchical: bool) -> Tuple:
     """Makes predictions given a Huggingface model.
 
     Args:
         model (str): trained model.
         dataset (Dataset): dataset.
+        hierarchical (bool) if using hierarchical model.
 
     Returns:
         Tuple: prediction tuple.
     """
-    train_labels = dataset['train']['labels']
-    n_train_labels = 2 if train_labels.dim() == 1 else train_labels.size()[1]
-    train_class = MultilabelTrainer if n_train_labels > 2 else Trainer
+    labels = dataset[0]['labels']
+    n_labels = 2 if labels.dim() == 0 else len(labels)
+    train_class = MultilabelTrainer if labels > 2 else Trainer
+    dataset = HierarchicalDataset(dataset) if hierarchical else dataset
     trainer = train_class(model=model)
     predictions = trainer.predict(dataset)
     return predictions

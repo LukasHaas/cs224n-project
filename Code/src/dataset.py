@@ -109,10 +109,3 @@ class HierarchicalDataset(torch.utils.data.Dataset):
             'labels': self.labels[idx]
         }
         return sample_dict
-
-    # print(dataset['train'])
-    # print(dataset['train']['labels'])
-    # print(dataset['train']['paragraph_attention_mask'])
-    # print(dataset['train']['input_ids'])
-    # print(dataset['train']['token_type_ids'])
-    # print(dataset['train']['attention_mask'])

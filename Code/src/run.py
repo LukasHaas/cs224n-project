@@ -6,6 +6,7 @@ from dataset import generate_echr_dataset
 from preprocessing import preprocess_dataset
 from model import load_model
 from evaluation import evaluate
+from datasets import DatasetDict
 
 logger = logging.getLogger('run')
 
@@ -15,7 +16,7 @@ argp.add_argument('function',
     choices=['load', 'finetune'])
 argp.add_argument('name',
     help='Name of the Huggingface model to finetune or path to trained model.')
-argp.add_argument('data',
+argp.add_argument('-d', '--data',
     help="Path of the dataset to load before finetuning/evaluation")
 argp.add_argument('--objective',
     help='Training objective.',
@@ -29,23 +30,31 @@ argp.add_argument('-s', '--sample',
     default=None)
 argp.add_argument('-e', '--evaluate', help='Set flag to evaluate on test set.',
                   action='store_true', default=False)
+argp.add_argument('-l', '----load', help='Set flag to load processed data.',
+                  action='store_true', default=False)
 argp.add_argument('--hierarchical', help='Set flag to use hierarchical model version.',
                   action='store_true', default=False)
 args = argp.parse_args()
 
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
+n_subset = int(args.sample) if args.sample is not None else None
+max_len = 128 if args.hierarchical else 512
 
 if args.function == 'finetune':
-    dataset = generate_echr_dataset(args.data, n_subset=int(args.sample))
+    if args.load == False:
+        dataset = generate_echr_dataset(args.data, n_subset=n_subset)
+        dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraph_len=max_len)
+        dataset.save_to_disk('processed_data/data')
+    
+    else:
+        dataset = DatasetDict.load_from_disk('processed_data/data')
 
-    max_len = 128 if args.hierarchical else 512
-    dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraph_len=max_len)
     model = finetune_model(args.name, dataset, args.hierarchical, args.output, 64, max_len)
 
 elif args.functon == 'load':
-    dataset = generate_echr_dataset(args.data, n_subset=int(args.sample))
+    dataset = generate_echr_dataset(args.data, n_subset=n_subset)
     dataset = preprocess_dataset(dataset, args.objective, args.name, 'hier' not in args.name)
     model = load_model(args.name)
 
 if args.evaluate:
-    evaluate(model, dataset)
+    evaluate(model, dataset, args.hierarchical)

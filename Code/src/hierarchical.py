@@ -4,15 +4,15 @@ import torch
 from torch import nn, Tensor
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
 
-class PositionalEncoding(nn.Module):
+class PositionalEncoder(nn.Module):
     def __init__(self, dim_model: int, dropout_p: float = 0.1, max_len: int=1024):
         """Initializes the positional embedding layer to enrich data fed into transformers
            with positional information.
 
         Args:
             dim_model (int): model dimension
-            dropout_p (float, optional): _description_. Defaults to 0.1.
-            max_len (int, optional): determines how far the position can influence other tokens. Defaults to 128.
+            dropout_p (float, optional): dropout for all embeddings. Defaults to 0.1.
+            max_len (int, optional): determines how far the position can influence other tokens. Defaults to 1024.
 
         Note:
             This code is a modified version of: `<https://pytorch.org/tutorials/beginner/transformer_tutorial.html>`_.
@@ -75,7 +75,7 @@ class HierarchicalModel(nn.Module):
         self.max_parag_length = max_parag_length
 
         # Init sinusoidal positional embeddings
-        self.pos_encoder = PositionalEncoding(base_model.config.hidden_size, max_len=max_parag_length)
+        self.pos_encoder = PositionalEncoder(base_model.config.hidden_size, max_len=max_parag_length)
 
         # Init segment-wise transformer-based encoder
         self.hier_model = nn.Transformer(d_model=base_model.config.hidden_size,
@@ -105,16 +105,17 @@ class HierarchicalModel(nn.Module):
             Tensor: logits of hierarchical model.
         """        
         # Hypothetical Example
-        # Batch of 10 paragraphs: (batch_size, n_paragraphs, max_parag_length) --> (10, 64, 128)
-        # If i.e using BERT as encoder: 768 hidden units
+        # Batch of 10 cases with 64 paragraphs each: (batch_size, n_paragraphs, max_parag_length) --> (10, 64, 128)
 
         # Combine first two dimensions to feed through base model (batch_size * n_paragraphs, max_parag_length) --> (640, 128)
-        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor)
-        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor)
+        device = input_ids.get_device()
+        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor).to(device)
+        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor).to(device)
         token_type_ids_reshape = None
         if token_type_ids is not None:
-            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor)
+            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor).to(device)
 
+        # If i.e using BERT as encoder: 768 hidden units
         # Encode sentences with BERT --> (640, 768)
         paragraph_embeddings = self.base_model(input_ids=input_ids_reshape,
                                                attention_mask=attention_mask_reshape,
@@ -128,8 +129,7 @@ class HierarchicalModel(nn.Module):
 
         # Compute case embeddings --> (10, 768)
         padding_mask = (paragraph_attention_mask == 0)
-        case_embeddings = self.hier_model(paragraph_embeddings,
-                                          src_key_padding_mask=padding_mask)
+        case_embeddings = self.hier_model(paragraph_embeddings, src_key_padding_mask=padding_mask)
         
         # Pool case embeddings (choose first embedding -> CLS token) NOTE: Experiment with different pooling strategies
         case_embeddings = case_embeddings[:, 0]
@@ -138,10 +138,10 @@ class HierarchicalModel(nn.Module):
         logits = self.cls_head(case_embeddings)
 
         # Generate output
-        output = BaseModelOutputWithPoolingAndCrossAttentions(case_embeddings, logits)
+        # output = BaseModelOutputWithPoolingAndCrossAttentions(case_embeddings, logits)
         
         # Compute Loss
         loss_fnc = nn.BCEWithLogitsLoss()
-        loss = loss_fnc(logits, labels)
+        loss = loss_fnc(logits, torch.unsqueeze(labels, 1))
 
-        return loss, output
+        return loss, logits #.squeeze(dim=-1)
