@@ -10,7 +10,7 @@ logger = logging.getLogger('evaluation')
 def compute_binary_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     logits, labels = eval_pred.predictions, eval_pred.label_ids
-    predictions = np.argmax(logits, axis=-1)
+    predictions = np.round(sigmoid(logits))
     eval_dict = {
         'precision': precision_score(labels, predictions, average='macro'),
         'recall': recall_score(labels, predictions, average='macro'),
@@ -24,6 +24,7 @@ def sigmoid(x):
 def compute_multilabel_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     logits, labels = eval_pred.predictions, eval_pred.label_ids
+    print(logits)
     predictions = np.round(sigmoid(logits))
     eval_dict = {
         'precision_micro': precision_score(labels, predictions, average='micro'),
@@ -44,8 +45,8 @@ def evaluate(model: Any, dataset: Any, hierarchical: bool):
         hierarchical (bool) if using hierarchical model.
     """
     logger.warning('Evaluating on test set.')
-    predictions = predict(model, dataset['test'], hierarchical)
+    predictions = predict(model, dataset['val'], hierarchical)
     train_labels = dataset['train'][0]['labels']
     eval_fnc = compute_binary_metrics if train_labels.dim() == 0 else compute_multilabel_metrics
-    evalutation = eval_fnc(predictions)
-    print(evalutation)
+    evaluation = eval_fnc(predictions)
+    print(evaluation)

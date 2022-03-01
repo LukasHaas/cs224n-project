@@ -96,7 +96,6 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
 
     dataset = tokenize(dataset, tokenizer, max_length=max_paragraph_len)
     dataset.set_format('torch')
-        
     return dataset
 
 def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer) -> DatasetDict:
@@ -155,7 +154,7 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
         DatasetDict: tokenized dataset.
     """
     logger.warning(f'Tokenizing dataset using {tokenizer} tokenizer.')
-    tokenize = AutoTokenizer.from_pretrained(tokenizer)
+    tokenize = AutoTokenizer.from_pretrained('bert-base-uncased') #tokenizer)
 
     if type(dataset['train']['facts'][0]) == str:
         dataset = dataset.map(

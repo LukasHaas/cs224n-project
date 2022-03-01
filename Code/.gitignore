@@ -1,0 +1,12 @@
+EN_dev/*
+EN_dev_Anon/*
+EN_test/*
+EN_test_Anon/*
+EN_train/*
+EN_train_Anon/*
+*.json
+!spec/*.json
+mlruns/*
+runs/*
+bert_trainer/*
+*_tokenized

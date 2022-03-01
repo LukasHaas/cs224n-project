@@ -17,19 +17,20 @@ logger = logging.getLogger('train')
 
 DEFAULT_TRAIN_ARGS = TrainingArguments(
     output_dir='model_outputs',
+    remove_unused_columns=False,
     per_device_train_batch_size=1,
     per_device_eval_batch_size=1,
     num_train_epochs=10,
     evaluation_strategy='epoch', # run validation at the end of each epoch
     save_strategy='epoch',
-    learning_rate=1e-5, # 2e-5 1e-3
+    learning_rate=1e-6, # 2e-5 1e-3
     logging_steps=1,
     load_best_model_at_end=True,
     seed=1111
 )
 
 def finetune_model(name: str, dataset: DatasetDict, hierarchical: bool, output: str,
-                   max_paragraphs: int=64, max_paragraph_len: int=512, log: bool=False, early_stopping: int=2,
+                   max_paragraphs: int=64, max_paragraph_len: int=512, log: bool=True, early_stopping: int=2,
                    train_args: TrainingArguments=DEFAULT_TRAIN_ARGS) -> AutoModel:
     """Finetunes a given Huggingface model.
 
@@ -55,7 +56,7 @@ def finetune_model(name: str, dataset: DatasetDict, hierarchical: bool, output: 
     if hierarchical:
         base_model = AutoModel.from_pretrained(name)
         n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
-        model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 2, False)
+        model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 1, False)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(name, num_labels=n_train_labels)
 
@@ -95,7 +96,7 @@ def __generate_trainer(dataset: DatasetDict,
     class_name = Trainer if n_train_labels == 2 else MultilabelTrainer
 
     if hierarchical:
-        return class_name(
+        return Trainer(
             model=model,
             args=train_args,
             train_dataset=HierarchicalDataset(dataset['train']),

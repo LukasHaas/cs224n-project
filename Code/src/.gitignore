@@ -1,0 +1,6 @@
+model_outputs/*
+__pycache__/*
+tmp_trainer/*
+runs/*
+mlruns/*
+processed_data/*
