@@ -1,4 +1,5 @@
 import logging
+import pickle
 import numpy as np
 import torch
 from typing import Dict, Any, List
@@ -92,6 +93,9 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
         train_labels = dataset['train']['articles']
         train_labels = set([x for xs in train_labels for x in xs])
         mapping = {x: i for i, x in enumerate(sorted(train_labels))}
+        with open(f'model_outputs/multilabel_mapping.pickle', 'wb') as f:
+            pickle.dump(mapping, f, protocol=pickle.HIGHEST_PROTOCOL)
+
         dataset = dataset.map(lambda x: __to_one_hot(x, mapping))
 
     dataset = tokenize(dataset, tokenizer, max_length=max_paragraph_len)
@@ -154,7 +158,7 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
         DatasetDict: tokenized dataset.
     """
     logger.warning(f'Tokenizing dataset using {tokenizer} tokenizer.')
-    tokenize = AutoTokenizer.from_pretrained('bert-base-uncased') #tokenizer)
+    tokenize = AutoTokenizer.from_pretrained(tokenizer) #tokenizer)
 
     if type(dataset['train']['facts'][0]) == str:
         dataset = dataset.map(

@@ -21,9 +21,11 @@ DEFAULT_TRAIN_ARGS = TrainingArguments(
     per_device_train_batch_size=1,
     per_device_eval_batch_size=1,
     num_train_epochs=10,
-    evaluation_strategy='epoch', # run validation at the end of each epoch
+    evaluation_strategy='steps',
+    eval_steps=60,
+    gradient_accumulation_steps=32,
     save_strategy='epoch',
-    learning_rate=1e-6, # 2e-5 1e-3
+    learning_rate=2e-7, # 2e-5 1e-3
     logging_steps=1,
     load_best_model_at_end=True,
     seed=1111
@@ -52,15 +54,16 @@ def finetune_model(name: str, dataset: DatasetDict, hierarchical: bool, output: 
     n_train_labels = 2 if train_labels.dim() == 1 else train_labels.size()[1]
     logger.warning(f'Number of classes detected: {n_train_labels}.')
 
+    train_args.__setattr__('output_dir', output)
     logger.warning(f'Downloading model: {name}.')
+
     if hierarchical:
         base_model = AutoModel.from_pretrained(name)
         n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
-        model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 1, False)
+        model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 0, False)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(name, num_labels=n_train_labels)
-
-    train_args.__setattr__('output_dir', output)
+    
     trainer = __generate_trainer(dataset, model, hierarchical, train_args)
 
     if log:

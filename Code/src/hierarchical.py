@@ -4,7 +4,7 @@ import torch
 from torch import nn, Tensor
 
 class PositionalEncoder(nn.Module):
-    def __init__(self, dim_model: int, dropout_p: float = 0.1, max_len: int=1024):
+    def __init__(self, dim_model: int, dropout_p: float = 0.1, max_len: int=5000):
         """Initializes the positional embedding layer to enrich data fed into transformers
            with positional information.
 
@@ -72,6 +72,7 @@ class HierarchicalModel(nn.Module):
         self.hidden_size = base_model.config.hidden_size
         self.max_parags = max_parags
         self.max_parag_length = max_parag_length
+        self.hier_layers = hier_layers
 
         # Init sinusoidal positional embeddings
         self.pos_encoder = PositionalEncoder(base_model.config.hidden_size, max_len=max_parag_length)
@@ -86,6 +87,15 @@ class HierarchicalModel(nn.Module):
                                           layer_norm_eps=base_model.config.layer_norm_eps,
                                           num_encoder_layers=hier_layers,
                                           num_decoder_layers=0).encoder
+
+        # Self-attention layer
+        self.self_attn = nn.MultiheadAttention(base_model.config.hidden_size, 
+                                               base_model.config.num_attention_heads,
+                                               dropout=0.1,
+                                               batch_first=True)
+
+        # Dropout
+        self.dropout = nn.Dropout(0.1)
 
         # Classification prediction head
         self.cls_head = nn.Linear(base_model.config.hidden_size, num_labels)
@@ -108,17 +118,17 @@ class HierarchicalModel(nn.Module):
 
         # Combine first two dimensions to feed through base model (batch_size * n_paragraphs, max_parag_length) --> (640, 128)
         device = input_ids.get_device()
-        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor)
-        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor)
+        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor).to(device)
+        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor).to(device)
         token_type_ids_reshape = None
         if token_type_ids is not None:
-            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor)
+            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor).to(device)
 
-        if device != -1:
-            input_ids_reshape.to(device)
-            attention_mask_reshape.to(device)
-            if token_type_ids_reshape is not None:
-                token_type_ids_reshape.to(device)
+        # if device != -1:
+        #     input_ids_reshape.to(device)
+        #     attention_mask_reshape.to(device)
+        #     if token_type_ids_reshape is not None:
+        #         token_type_ids_reshape.to(device)
 
         # If i.e using BERT as encoder: 768 hidden units
         # Encode sentences with BERT --> (640, 768)
@@ -134,10 +144,20 @@ class HierarchicalModel(nn.Module):
 
         # Compute case embeddings --> (10, 64, 768)
         padding_mask = (paragraph_attention_mask == 0)
-        case_embeddings = self.hier_model(paragraph_embeddings, src_key_padding_mask=padding_mask)
+        if self.hier_layers > 0:
+            case_embeddings = self.hier_model(paragraph_embeddings, src_key_padding_mask=padding_mask)
+        else:
+            case_embeddings = self.self_attn(paragraph_embeddings,
+                                             paragraph_embeddings,
+                                             paragraph_embeddings,
+                                             key_padding_mask=padding_mask,
+                                             need_weights=False)[0]
         
         # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768) NOTE: Experiment with different pooling strategies
         case_embeddings = case_embeddings[:, 0]
+
+        # Dropout
+        case_embeddings = self.dropout(case_embeddings)
 
         # Linear transform --> (10, num_labels)
         logits = self.cls_head(case_embeddings)

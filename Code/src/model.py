@@ -29,11 +29,11 @@ def load_model(path: str, hierarchical: bool, base_model: str=None, num_labels: 
 
     return model
 
-def predict(model: str, dataset: Dataset, hierarchical: bool) -> Tuple:
+def predict(model: Any, dataset: Dataset, hierarchical: bool) -> Tuple:
     """Makes predictions given a Huggingface model.
 
     Args:
-        model (str): trained model.
+        model (Any): trained model.
         dataset (Dataset): dataset.
         hierarchical (bool) if using hierarchical model.
 
@@ -47,14 +47,18 @@ def predict(model: str, dataset: Dataset, hierarchical: bool) -> Tuple:
         trainer = train_class(model=model)
         return trainer.predict(dataset)
 
-    trainloader = torch.utils.data.DataLoader(HierarchicalDataset(dataset), shuffle=False, batch_size=32)
-    logits = []
+    # trainloader = torch.utils.data.DataLoader(HierarchicalDataset(dataset), shuffle=False, batch_size=32)
+    # logits = []
 
-    with torch.no_grad():
-        model.eval()
-        for data in tqdm(trainloader):
-            _, batch_logits = model(**data)
-            logits += batch_logits
+    # with torch.cuda.device(1):
+    #     with torch.no_grad():
+    #         model.eval()
+    #         for data in tqdm(trainloader):
+    #             _, batch_logits = model(**data)
+    #             logits += batch_logits
 
-    logits = torch.stack(logits)
-    return logits
+    # logits = torch.stack(logits)
+    # return logits
+    trainer = Trainer(model=model)
+    predictions = trainer.predict(HierarchicalDataset(dataset))
+    return predictions

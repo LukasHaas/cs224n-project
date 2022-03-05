@@ -24,15 +24,14 @@ def sigmoid(x):
 def compute_multilabel_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     logits, labels = eval_pred.predictions, eval_pred.label_ids
-    print(logits)
     predictions = np.round(sigmoid(logits))
     eval_dict = {
-        'precision_micro': precision_score(labels, predictions, average='micro'),
-        'recall_micro': recall_score(labels, predictions, average='micro'),
-        'f1_micro': f1_score(labels, predictions, average='micro'),
-        'precision_macro': precision_score(labels, predictions, average='macro'),
-        'recall_macro': recall_score(labels, predictions, average='macro'),
-        'f1_macro': f1_score(labels, predictions, average='macro')
+        'precision_micro': precision_score(labels, predictions, average='micro', zero_division=1),
+        'recall_micro': recall_score(labels, predictions, average='micro', zero_division=1),
+        'f1_micro': f1_score(labels, predictions, average='micro', zero_division=1),
+        'precision_macro': precision_score(labels, predictions, average='macro', zero_division=1),
+        'recall_macro': recall_score(labels, predictions, average='macro', zero_division=1),
+        'f1_macro': f1_score(labels, predictions, average='macro', zero_division=1)
     }
     return eval_dict
 
@@ -45,7 +44,7 @@ def evaluate(model: Any, dataset: Any, hierarchical: bool):
         hierarchical (bool) if using hierarchical model.
     """
     logger.warning('Evaluating on test set.')
-    predictions = predict(model, dataset['val'], hierarchical)
+    predictions = predict(model, dataset['test'], hierarchical)
     train_labels = dataset['train'][0]['labels']
     eval_fnc = compute_binary_metrics if train_labels.dim() == 0 else compute_multilabel_metrics
     evaluation = eval_fnc(predictions)
