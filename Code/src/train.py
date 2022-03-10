@@ -8,6 +8,7 @@ from trainers import MultilabelTrainer
 from evaluation import compute_binary_metrics, compute_multilabel_metrics
 from callbacks import LoggingCallback
 from hierarchical import HierarchicalModel
+from alexa import aLEXa
 from torch import Tensor
 
 # Initialize Logger
@@ -28,6 +29,7 @@ DEFAULT_TRAIN_ARGS = TrainingArguments(
     learning_rate=5e-6, #3e-6, # 1e-5 2e-5 1e-3
     logging_steps=1,
     load_best_model_at_end=True,
+    save_steps=60,
     seed=1111
 )
 
