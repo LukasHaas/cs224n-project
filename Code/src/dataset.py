@@ -86,10 +86,12 @@ def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True,
 class HierarchicalDataset(torch.utils.data.Dataset):
     def __init__(self, dataset: Dataset):
         self.input_ids = self.__stack_tensors__(dataset['input_ids'])
-        self.token_type_ids = self.__stack_tensors__(dataset['token_type_ids'])
         self.attention_mask = self.__stack_tensors__(dataset['attention_mask'])
         self.paragraph_attention_mask = dataset['paragraph_attention_mask']
         self.labels = dataset['labels']
+
+        if 'token_type_ids' in dataset.column_names:
+            self.token_type_ids = self.__stack_tensors__(dataset['token_type_ids'])
 
     def __len__(self):
         return self.labels.size()[0]
@@ -103,9 +105,14 @@ class HierarchicalDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         sample_dict = {
             'input_ids': self.input_ids[idx],
-            'token_type_ids': self.token_type_ids[idx],
             'attention_mask': self.attention_mask[idx],
             'paragraph_attention_mask': self.paragraph_attention_mask[idx],
             'labels': self.labels[idx]
         }
+
+        try:
+            sample_dict['token_type_ids'] = self.token_type_ids[idx]
+        except AttributeError:
+            pass
+        
         return sample_dict

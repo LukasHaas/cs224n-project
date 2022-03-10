@@ -127,8 +127,10 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max
 
         tokenized = tokenizer(facts,  padding=True, truncation=True, max_length=max_length)
         new_dataset['input_ids'] = np.array(tokenized['input_ids']).reshape((n_examples, n_paragraphs, -1))
-        new_dataset['token_type_ids'] = np.array(tokenized['token_type_ids']).reshape((n_examples, n_paragraphs, -1))
         new_dataset['attention_mask'] = np.array(tokenized['attention_mask']).reshape((n_examples, n_paragraphs, -1))
+
+        if 'token_type_ids' in tokenized:
+            new_dataset['token_type_ids'] = np.array(tokenized['token_type_ids']).reshape((n_examples, n_paragraphs, -1))
 
         for key, value in new_dataset.items():
             new_dataset[key] = Tensor(value)

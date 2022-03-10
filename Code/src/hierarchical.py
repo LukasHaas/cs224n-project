@@ -103,13 +103,14 @@ class HierarchicalModel(nn.Module):
         self.cls_head = nn.Linear(self.hidden_size, num_labels)
 
     def forward(self, paragraph_attention_mask: Tensor, input_ids: Tensor, attention_mask: Tensor, 
-                token_type_ids: Tensor, labels: Tensor) -> Tensor:
+                labels: Tensor, token_type_ids: Tensor=None) -> Tensor:
         """Computes a forward pass through the model.
 
         Args:
             paragraph_attention_mask (Tensor): attention mask indicating relevant paragph indices.
-            input_ids (Tensor, optional): token ids for base model.
-            attention_mask (Tensor, optional): attention mask for base model.
+            input_ids (Tensor): token ids for base model.
+            attention_mask (Tensor): attention mask for base model.
+            labels (Tensor): labels for the model.
             token_type_ids (Tensor, optional): mask indicating special tokens for base model.
 
         Returns:
