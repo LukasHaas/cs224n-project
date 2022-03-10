@@ -49,7 +49,7 @@ class PositionalEncoder(nn.Module):
         return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
  
 class HierarchicalModel(nn.Module):
-    def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=64, max_parag_length: int=256,
+    def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=48, max_parag_length: int=224,
                  hier_layers: int=2, freeze_base: bool=False):
         """A hierarchical model using a transformer-based base model as a base.
 
@@ -58,7 +58,8 @@ class HierarchicalModel(nn.Module):
             num_labels (int): number of output classes. Defaults to 2.
             max_parags (int, optional): maximum number of paragraphs. Defaults to 64.
             max_segment_length (int, optional): maximum length of paragraph. Defaults to 128.
-            hier_layers (int, optional): number of hierarchical transformer layers. Defaults to 2.
+            hier_layers (int, optional): number of hierarchical transformer layers. If 0 layers are chosen,
+                                         a simple multi-head self-attention layer is used. Defaults to 2.
             freeze_base (int, optional): whether base model parameters should be freezed. Defaults to False.
         """
         super(HierarchicalModel, self).__init__()
