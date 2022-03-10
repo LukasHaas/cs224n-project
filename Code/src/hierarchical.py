@@ -49,7 +49,7 @@ class PositionalEncoder(nn.Module):
         return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
  
 class HierarchicalModel(nn.Module):
-    def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=64, max_parag_length: int=128,
+    def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=64, max_parag_length: int=256,
                  hier_layers: int=2, freeze_base: bool=False):
         """A hierarchical model using a transformer-based base model as a base.
 
@@ -62,7 +62,9 @@ class HierarchicalModel(nn.Module):
             freeze_base (int, optional): whether base model parameters should be freezed. Defaults to False.
         """
         super(HierarchicalModel, self).__init__()
-        # Sentence encoder model forming the base of ther hierarchical model
+        print(f'Initializing hierarchical model with input shape [-1, {max_parags}, {max_parag_length}].')
+
+        # Encoder model forming the base of the hierarchical model
         self.base_model = base_model
         if freeze_base:
             for param in self.base_model.parameters():
@@ -75,10 +77,10 @@ class HierarchicalModel(nn.Module):
         self.hier_layers = hier_layers
 
         # Init sinusoidal positional embeddings
-        self.pos_encoder = PositionalEncoder(base_model.config.hidden_size, max_len=max_parag_length)
+        self.pos_encoder = PositionalEncoder(self.hidden_size, max_len=max_parag_length)
 
         # Init segment-wise transformer-based encoder
-        self.hier_model = nn.Transformer(d_model=base_model.config.hidden_size,
+        self.hier_model = nn.Transformer(d_model=self.hidden_size,
                                           nhead=base_model.config.num_attention_heads,
                                           batch_first=True,
                                           dim_feedforward=base_model.config.intermediate_size,
@@ -89,7 +91,7 @@ class HierarchicalModel(nn.Module):
                                           num_decoder_layers=0).encoder
 
         # Self-attention layer
-        self.self_attn = nn.MultiheadAttention(base_model.config.hidden_size, 
+        self.self_attn = nn.MultiheadAttention(self.hidden_size, 
                                                base_model.config.num_attention_heads,
                                                dropout=0.1,
                                                batch_first=True)
@@ -98,7 +100,7 @@ class HierarchicalModel(nn.Module):
         self.dropout = nn.Dropout(0.1)
 
         # Classification prediction head
-        self.cls_head = nn.Linear(base_model.config.hidden_size, num_labels)
+        self.cls_head = nn.Linear(self.hidden_size, num_labels)
 
     def forward(self, paragraph_attention_mask: Tensor, input_ids: Tensor, attention_mask: Tensor, 
                 token_type_ids: Tensor, labels: Tensor) -> Tensor:
@@ -124,12 +126,6 @@ class HierarchicalModel(nn.Module):
         if token_type_ids is not None:
             token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor).to(device)
 
-        # if device != -1:
-        #     input_ids_reshape.to(device)
-        #     attention_mask_reshape.to(device)
-        #     if token_type_ids_reshape is not None:
-        #         token_type_ids_reshape.to(device)
-
         # If i.e using BERT as encoder: 768 hidden units
         # Encode sentences with BERT --> (640, 768)
         paragraph_embeddings = self.base_model(input_ids=input_ids_reshape,
@@ -144,8 +140,12 @@ class HierarchicalModel(nn.Module):
 
         # Compute case embeddings --> (10, 64, 768)
         padding_mask = (paragraph_attention_mask == 0)
+
+        # --- Using transformer layers
         if self.hier_layers > 0:
             case_embeddings = self.hier_model(paragraph_embeddings, src_key_padding_mask=padding_mask)
+
+        # --- Using multi-head self attention
         else:
             case_embeddings = self.self_attn(paragraph_embeddings,
                                              paragraph_embeddings,
@@ -153,7 +153,7 @@ class HierarchicalModel(nn.Module):
                                              key_padding_mask=padding_mask,
                                              need_weights=False)[0]
         
-        # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768) NOTE: Experiment with different pooling strategies
+        # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768) NOTE: Experimented with different pooling strategies
         case_embeddings = case_embeddings[:, 0]
 
         # Dropout
@@ -162,7 +162,7 @@ class HierarchicalModel(nn.Module):
         # Linear transform --> (10, num_labels)
         logits = self.cls_head(case_embeddings)
         
-        # Compute Loss
+        # Compute binary cross-entropy loss
         if self.num_labels == 1:
             labels = torch.unsqueeze(labels, 1)
 

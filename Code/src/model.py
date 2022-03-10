@@ -7,7 +7,8 @@ import torch
 from hierarchical import HierarchicalModel
 from tqdm import tqdm
 
-def load_model(path: str, hierarchical: bool, base_model: str=None, num_labels: int=21) -> Any:
+def load_model(path: str, hierarchical: bool, base_model: str=None, num_labels: int=1, max_paragraphs: int=64,
+               max_paragraph_len: int=128) -> Any:
     """Load a Huggingface moddel from path.
 
     Args:
@@ -22,7 +23,7 @@ def load_model(path: str, hierarchical: bool, base_model: str=None, num_labels: 
     if hierarchical:
         checkpoint = torch.load(path)
         base_model = AutoModel.from_pretrained(base_model)
-        model = HierarchicalModel(base_model, num_labels, 64, 128, 1, False)
+        model = HierarchicalModel(base_model, num_labels, max_paragraphs, max_paragraph_len, 2, False)
         model.load_state_dict(checkpoint)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(path)

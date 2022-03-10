@@ -22,22 +22,22 @@ DEFAULT_TRAIN_ARGS = TrainingArguments(
     per_device_eval_batch_size=1,
     num_train_epochs=10,
     evaluation_strategy='steps',
-    eval_steps=60,
-    gradient_accumulation_steps=32,
+    eval_steps=25,
+    gradient_accumulation_steps=64,
     save_strategy='epoch',
-    learning_rate=2e-7, # 2e-5 1e-3
+    learning_rate=4e-6, # 1e-5 2e-5 1e-3
     logging_steps=1,
     load_best_model_at_end=True,
     seed=1111
 )
 
-def finetune_model(name: str, dataset: DatasetDict, hierarchical: bool, output: str,
+def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, output: str,
                    max_paragraphs: int=64, max_paragraph_len: int=512, log: bool=True, early_stopping: int=2,
                    train_args: TrainingArguments=DEFAULT_TRAIN_ARGS) -> AutoModel:
     """Finetunes a given Huggingface model.
 
     Args:
-        name (str): name of Huggingface model.
+        model (Any): name of Huggingface model or trainable object.
         dataset (DatasetDict): dataset.
         hierarchical (bool): if hierarchical model should be chosen.
         output (str): output directory of trained model.
@@ -55,19 +55,23 @@ def finetune_model(name: str, dataset: DatasetDict, hierarchical: bool, output: 
     logger.warning(f'Number of classes detected: {n_train_labels}.')
 
     train_args.__setattr__('output_dir', output)
-    logger.warning(f'Downloading model: {name}.')
+    logger.warning(f'Downloading model: {model}.')
 
-    if hierarchical:
-        base_model = AutoModel.from_pretrained(name)
-        n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
-        model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 0, False)
+    if type(model) == str:
+        if hierarchical:
+            base_model = AutoModel.from_pretrained(model)
+            n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
+            loaded_model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 2, False)
+        else:
+            loaded_model = AutoModelForSequenceClassification.from_pretrained(model, num_labels=n_train_labels)
     else:
-        model = AutoModelForSequenceClassification.from_pretrained(name, num_labels=n_train_labels)
+        loaded_model = model
     
-    trainer = __generate_trainer(dataset, model, hierarchical, train_args)
+    trainer = __generate_trainer(dataset, loaded_model, hierarchical, train_args)
 
     if log:
-        trainer.add_callback(LoggingCallback(f'finetune_trainer/log_{name}.jsonl'))
+        log_name = model if type(model) == str else 'loaded_model'
+        trainer.add_callback(LoggingCallback(f'finetune_trainer/log_{log_name}.jsonl'))
     
     if early_stopping > 0:
         trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=early_stopping,

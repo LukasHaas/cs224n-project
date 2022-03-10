@@ -13,7 +13,7 @@ logger = logging.getLogger('run')
 argp = argparse.ArgumentParser()
 argp.add_argument('function',
     help='Whether to pretrain, finetune or evaluate a model',
-    choices=['load', 'finetune'])
+    choices=['load', 'loadtune', 'finetune'])
 argp.add_argument('name',
     help='Name of the Huggingface model to finetune or path to trained model.')
 argp.add_argument('-d', '--data',
@@ -28,7 +28,7 @@ argp.add_argument('-o', '--output',
 argp.add_argument('-s', '--sample', 
     help='How many examples to sample for training.',
     default=None)
-argp.add_argument('-b', '--base_model', 
+argp.add_argument('-b', '--base-model', 
     help='What base model was used for the hierarchical training.',
     default='bert-base-uncased')
 argp.add_argument('-e', '--evaluate', help='Set flag to evaluate on test set.',
@@ -41,24 +41,28 @@ args = argp.parse_args()
 
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
 n_subset = int(args.sample) if args.sample is not None else None
-max_len = 128 if args.hierarchical else 512
+max_paragraph_len = 224 if args.hierarchical else 224
+max_paragraphs = 48
 num_labels = 21 if args.objective == 'multilabel' else 1
 
 if args.function == 'finetune':
     if args.load == False:
         dataset = generate_echr_dataset(args.data, n_subset=n_subset)
-        dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraph_len=max_len)
-        dataset.save_to_disk('processed_data/data')
+        dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraphs, max_paragraph_len)
+        # dataset.save_to_disk('processed_data/data')
     
     else:
         dataset = DatasetDict.load_from_disk('processed_data/data')
 
-    model = finetune_model(args.name, dataset, args.hierarchical, args.output, 64, max_len)
+    model = finetune_model(args.name, dataset, args.hierarchical, args.output, max_paragraphs, max_paragraph_len)
 
 else:
     dataset = generate_echr_dataset(args.data, n_subset=n_subset)
-    dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraph_len=max_len)
-    model = load_model(args.name, args.hierarchical, args.base_model, num_labels)
+    dataset = preprocess_dataset(dataset, args.objective, args.base_model, args.hierarchical, max_paragraphs, max_paragraph_len)
+    model = load_model(args.name, args.hierarchical, args.base_model, num_labels, max_paragraphs, max_paragraph_len)
+
+    if args.function == 'loadtune':
+        model = finetune_model(model, dataset, args.hierarchical, args.output, max_paragraphs, max_paragraph_len)
 
 if args.evaluate:
     evaluate(model, dataset, args.hierarchical)

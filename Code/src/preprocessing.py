@@ -102,12 +102,13 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
     dataset.set_format('torch')
     return dataset
 
-def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer) -> DatasetDict:
+def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max_length: int) -> DatasetDict:
     """Tokenizes hierarchical datasets.
 
     Args:
         datasets (Dict): datasets.
         tokenizer (AutoTokenizer): tokenizer function.
+        max_length (int): maximum sentence length.
 
     Returns:
         DatasetDict: new datasets.
@@ -124,7 +125,7 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer) -> 
             'labels': dataset['labels'],
         }
 
-        tokenized = tokenizer(facts,  padding=True, truncation=True, max_length=128)
+        tokenized = tokenizer(facts,  padding=True, truncation=True, max_length=max_length)
         new_dataset['input_ids'] = np.array(tokenized['input_ids']).reshape((n_examples, n_paragraphs, -1))
         new_dataset['token_type_ids'] = np.array(tokenized['token_type_ids']).reshape((n_examples, n_paragraphs, -1))
         new_dataset['attention_mask'] = np.array(tokenized['attention_mask']).reshape((n_examples, n_paragraphs, -1))
@@ -167,7 +168,7 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
                     batch_size=16)
         dataset = dataset.remove_columns(['facts', 'articles', 'ids'])
     else:
-        dataset = __tokenize_hierarchical(dataset, tokenize)
+        dataset = __tokenize_hierarchical(dataset, tokenize, max_length=max_length)
     
     return dataset
     
