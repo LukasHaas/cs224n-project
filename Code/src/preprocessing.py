@@ -29,6 +29,25 @@ def __to_one_hot(example: Dict, mapping: Dict) -> Dict:
         'labels': torch.Tensor(one_hots)
     }
 
+def __create_attn_labels(example: Dict, num_paragraphs: int) -> Dict:
+    """One hot encodes attention labels used for aLEXa model.
+
+    Args:
+        example (Dict): a single example.
+        num_paragraphs (int): the number of paragraphs.
+
+    Returns:
+        Dict: preprocessed example.
+    """
+    one_hots = np.zeros(num_paragraphs)
+    for relevant_fact in example['rationale']:
+        if relevant_fact < num_paragraphs:
+            one_hots[relevant_fact] = 1
+
+    return {
+        'attention_labels': torch.Tensor(one_hots)
+    }
+
 def __merge_facts(example: Dict) -> Dict:
     """Merges all facts in the case.
 
@@ -84,8 +103,12 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
     logger.warning(f'Preprocessing dataset for {objective} classification objective.')
     assert objective in OBJECTIVES, f'Objective must be one of {OBJECTIVES}.'
 
-    if hierarchical or alexa:
+    if hierarchical:
         dataset = dataset.map(lambda x: __to_hierarchical(x, max_paragraphs))
+    elif alexa:
+        dataset = dataset.map(lambda x: __to_hierarchical(x, max_paragraphs))
+        dataset = dataset.map(lambda x: __create_attn_labels(x, max_paragraphs))
+        dataset = dataset.remove_columns(['rationale'])
     else:
         dataset = dataset.map(__merge_facts)
     
@@ -133,8 +156,15 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max
         if 'token_type_ids' in tokenized:
             new_dataset['token_type_ids'] = np.array(tokenized['token_type_ids']).reshape((n_examples, n_paragraphs, -1))
 
+        if 'attention_labels' in dataset.column_names:
+            new_dataset['attention_labels'] = dataset['attention_labels'],
+            new_dataset['attention_label_mask'] = dataset['attention_label_mask']
+
         for key, value in new_dataset.items():
-            new_dataset[key] = Tensor(value)
+            if key != 'attention_labels':
+                new_dataset[key] = Tensor(value)
+            else:
+                new_dataset[key] = Tensor(value[0])
         
         new_datasets.append(Dataset.from_dict(new_dataset))
 

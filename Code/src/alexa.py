@@ -5,7 +5,8 @@ from transformer_encoder import CustomTransformerEncoder, CustomTransformerEncod
 
 class aLEXa(nn.Module):
     def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=64, max_parag_length: int=128,
-                 hier_layers: int=2, learn_loss_weights: bool=True, freeze_base: bool=False):
+                 hier_layers: int=2, learn_loss_weights: bool=True, freeze_base: bool=False,
+                 label_weights: Tensor=None, pos_weights: Tensor=None):
         """A hierarchical model using a transformer-based base model as a base.
 
         Args:
@@ -16,6 +17,10 @@ class aLEXa(nn.Module):
             hier_layers (int, optional): number of hierarchical transformer layers. Defaults to 2.
             learn_loss_weights (bool, optional): whether the loss weights should be learned. Defaults to True.
             freeze_base (int, optional): whether base model parameters should be freezed. Defaults to False.
+            label_weights (Tensor, optional): a weight of positive examples. Must be a vector with length equal
+                                              to the number of classes. Defaults to None.
+            pos_weights (Tensor, optional): a weight of positive examples. Must be a vector with length equal to
+                                            the number of classes. Defaults to None.
         """
         super(aLEXa, self).__init__()
         # Sentence encoder model forming the base of ther hierarchical model
@@ -67,6 +72,10 @@ class aLEXa(nn.Module):
         # Classification prediction head
         self.cls_head = nn.Linear(base_model.config.hidden_size, num_labels)
 
+        # Loss functions
+        self.class_loss_fnc = nn.BCEWithLogitsLoss(weight=label_weights, pos_weight=pos_weights)
+        self.attn_loss_fnc = nn.BCEWithLogitsLoss()
+
     def compute_classification_loss(self, logits: Tensor, labels: Tensor) -> Tensor:
         """Computes classification binary cross-entropy loss.
 
@@ -80,8 +89,7 @@ class aLEXa(nn.Module):
         if self.num_labels == 1:
             labels = torch.unsqueeze(labels, 1)
 
-        loss_fnc = nn.BCEWithLogitsLoss()
-        loss = loss_fnc(logits, labels)
+        loss = self.class_loss_fnc(logits, labels)
         return loss
 
     def compute_attention_forcing_loss(self, logits: Tensor, labels: Tensor) -> Tensor:
@@ -94,8 +102,7 @@ class aLEXa(nn.Module):
         Returns:
             Tensor: loss.
         """
-        loss_fnc = nn.BCEWithLogitsLoss()
-        loss = loss_fnc(logits, labels)
+        loss = self.attn_loss_fnc(logits, labels)
         return loss
 
     def compute_total_loss(self, class_loss: Tensor, attn_loss: Tensor) -> Tensor:
@@ -116,20 +123,22 @@ class aLEXa(nn.Module):
             loss = weighted_class_loss + weighted_attn_loss + regularization
             return loss
 
-        raise NotImplementedError()
+        raise NotImplementedError('Manual loss weighted has not been implemented.')
 
     def forward(self, paragraph_attention_mask: Tensor, input_ids: Tensor, attention_mask: Tensor, 
-                token_type_ids: Tensor, class_labels: Tensor, attn_labels: Tensor, force_attn: Tensor) -> Tensor:
+                labels: Tensor, attention_labels: Tensor, attention_label_mask: Tensor,
+                token_type_ids: Tensor=None) -> Tensor:
         """Computes a forward pass through the model.
 
         Args:
             paragraph_attention_mask (Tensor): attention mask indicating relevant paragph indices.
             input_ids (Tensor): token ids for base model.
             attention_mask (Tensor): attention mask for base model.
+            labels (Tensor): classification labels.
+            attention_labels (Tensor): attention forcing labels.
+            attention_label_mask (Tensor): integer boolean if attention should be forced or not.
             token_type_ids (Tensor, optional): mask indicating special tokens for base model.
-            class_labels (Tensor): classification labels.
-            attn_labels (Tensor): attention forcing labels.
-            force_attn (Tensor): integer boolean if attention should be forced or not.
+                                               Defaults to None.
 
         Returns:
             Tensor: logits of hierarchical model.
@@ -190,10 +199,15 @@ class aLEXa(nn.Module):
         class_logits = self.cls_head(case_embeddings)
         
         # Compute losses
-        attn_loss = self.compute_attention_forcing_loss(attn_logits, attn_labels) * force_attn
-        class_loss = self.compute_classification_loss(class_logits, class_labels)
+        attn_loss = self.compute_attention_forcing_loss(attn_logits, attention_labels) * attention_label_mask
+        class_loss = self.compute_classification_loss(class_logits, labels)
 
-        # Weight losses
+        print(attn_loss)
+        print(class_loss)
+
+        # Weigh losses
         loss = self.compute_total_loss(class_loss, attn_loss)
+        print(loss)
+        print(self.class_weight, self.attn_forcing_weight)
 
         return loss, class_logits, attn_logits

@@ -90,7 +90,8 @@ def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, alexa: 
                                              pos_weights=pw)
         else:
             loaded_model = aLEXa(base_model, n_train_labels, max_paragraphs, max_paragraph_len,
-                                    hier_layers=2, learn_loss_weights=True, freeze_base=False)
+                                    hier_layers=1, learn_loss_weights=True, freeze_base=False,
+                                    label_weights=lw, pos_weights=pw)
 
     # Base models 
     else:

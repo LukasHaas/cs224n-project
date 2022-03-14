@@ -16,13 +16,13 @@ def map_silver_rationale(example: Dict, df: pd.DataFrame) -> Dict:
         mapped_case = df.loc[example['ids']]
         return {
             'rationale': mapped_case['rationale'],
-            'rationale_exists': 1
+            'attention_label_mask': 1
         }
 
     except KeyError:
         return {
             'rationale': [],
-            'rationale_exists': 0
+            'attention_label_mask': 0
         }
 
 def process_echr_dataset(path: str) -> Dataset:
@@ -80,7 +80,7 @@ def process_echtr_dataset(path: str) -> pd.DataFrame:
             data['ids'].append(case_data['case_id'])
 
     df = pd.DataFrame.from_dict(data)
-    df = df.drop_duplicates()
+    df = df.drop_duplicates(subset=['ids'])
     df = df.set_index('ids')
     return df
 
@@ -147,7 +147,10 @@ class HierarchicalDataset(torch.utils.data.Dataset):
             self.token_type_ids = self.__stack_tensors__(dataset['token_type_ids'])
 
         if 'attention_labels' in dataset.column_names:
-            self.attention_labels = self.__stack_tensors__(dataset['attention_labels'])
+            self.attention_labels = dataset['attention_labels']
+
+        if 'attention_label_mask' in dataset.column_names:
+            self.attention_label_mask = dataset['attention_label_mask']
 
     def __len__(self):
         return self.labels.size()[0]
@@ -175,6 +178,11 @@ class HierarchicalDataset(torch.utils.data.Dataset):
         # Label generation for attention forcing training
         try:
             sample_dict['attention_labels'] = self.attention_labels[idx]
+        except AttributeError:
+            pass
+
+        try:
+            sample_dict['attention_label_mask'] = self.attention_label_mask[idx]
         except AttributeError:
             pass
         
