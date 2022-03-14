@@ -37,6 +37,8 @@ argp.add_argument('-l', '--load', help='Set flag to load processed data.',
                   action='store_true', default=False)
 argp.add_argument('--hierarchical', help='Set flag to use hierarchical model version.',
                   action='store_true', default=False)
+argp.add_argument('--alexa', help='Set flag to use attention-forcing aLEXa model version.',
+                  action='store_true', default=False)
 args = argp.parse_args()
 
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
@@ -45,24 +47,27 @@ max_paragraph_len = 224 if args.hierarchical else 224
 max_paragraphs = 48
 num_labels = 21 if args.objective == 'multilabel' else 1
 
-if args.function == 'finetune':
-    if args.load == False:
-        dataset = generate_echr_dataset(args.data, n_subset=n_subset)
-        dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, max_paragraphs, max_paragraph_len)
-        # dataset.save_to_disk('processed_data/data')
-    
-    else:
-        dataset = DatasetDict.load_from_disk('processed_data/data')
 
-    model = finetune_model(args.name, dataset, args.hierarchical, args.output, max_paragraphs, max_paragraph_len)
+# Load dataset
+if args.load == False:
+    dataset = generate_echr_dataset(args.data, n_subset=n_subset, attention_forcing=args.alexa)
+    dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, 
+                                    args.alexa, max_paragraphs, max_paragraph_len)
+    # dataset.save_to_disk('processed_data/data')
+    
+else:
+    dataset = DatasetDict.load_from_disk('processed_data/data')
+
+# Load or train model
+if args.function == 'finetune':
+    model = finetune_model(args.name, dataset, args.hierarchical, args.alexa,
+                           args.output, max_paragraphs, max_paragraph_len)
 
 else:
-    dataset = generate_echr_dataset(args.data, n_subset=n_subset)
-    dataset = preprocess_dataset(dataset, args.objective, args.base_model, args.hierarchical, max_paragraphs, max_paragraph_len)
     model = load_model(args.name, args.hierarchical, args.base_model, num_labels, max_paragraphs, max_paragraph_len)
-
     if args.function == 'loadtune':
         model = finetune_model(model, dataset, args.hierarchical, args.output, max_paragraphs, max_paragraph_len)
 
+# Evaluate on test set
 if args.evaluate:
     evaluate(model, dataset, args.hierarchical)

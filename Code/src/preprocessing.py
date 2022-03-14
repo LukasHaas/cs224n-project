@@ -29,6 +29,25 @@ def __to_one_hot(example: Dict, mapping: Dict) -> Dict:
         'labels': torch.Tensor(one_hots)
     }
 
+def __create_attn_labels(example: Dict, num_paragraphs: int) -> Dict:
+    """One hot encodes attention labels used for aLEXa model.
+
+    Args:
+        example (Dict): a single example.
+        num_paragraphs (int): the number of paragraphs.
+
+    Returns:
+        Dict: preprocessed example.
+    """
+    one_hots = np.zeros(num_paragraphs)
+    for relevant_fact in example['rationale']:
+        if relevant_fact < num_paragraphs:
+            one_hots[relevant_fact] = 1
+
+    return {
+        'attention_labels': torch.Tensor(one_hots)
+    }
+
 def __merge_facts(example: Dict) -> Dict:
     """Merges all facts in the case.
 
@@ -65,8 +84,8 @@ def __to_hierarchical(example: Dict, max_paragraphs: int) -> Dict:
     }
   
 def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
-                       hierarchical: bool=False, max_paragraphs: int=64,
-                       max_paragraph_len: int=512) -> DatasetDict:
+                       hierarchical: bool=False, alexa: bool=False,
+                       max_paragraphs: int=64, max_paragraph_len: int=512) -> DatasetDict:
     """Preprocesses dataset.
 
     Args:
@@ -74,6 +93,7 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
         objective (str): either binary or multilabel.
         tokenizer (str): name of Huggingface tokenizer.
         hierarchical (bool, optional): whether model is hierarchical. Defaults to False.
+        alexa (bool, optional): whether the attention forcing model is used. Defaults to False.
         max_paragraphs (int, optional): maximum number of paragraphs considered. Defaults to 64.
         max_paragraph_len (int, optional): maximum length of paragraphs. Defaults to 128.
 
@@ -85,6 +105,10 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
 
     if hierarchical:
         dataset = dataset.map(lambda x: __to_hierarchical(x, max_paragraphs))
+    elif alexa:
+        dataset = dataset.map(lambda x: __to_hierarchical(x, max_paragraphs))
+        dataset = dataset.map(lambda x: __create_attn_labels(x, max_paragraphs))
+        dataset = dataset.remove_columns(['rationale'])
     else:
         dataset = dataset.map(__merge_facts)
     
@@ -132,8 +156,15 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max
         if 'token_type_ids' in tokenized:
             new_dataset['token_type_ids'] = np.array(tokenized['token_type_ids']).reshape((n_examples, n_paragraphs, -1))
 
+        if 'attention_labels' in dataset.column_names:
+            new_dataset['attention_labels'] = dataset['attention_labels'],
+            new_dataset['attention_label_mask'] = dataset['attention_label_mask']
+
         for key, value in new_dataset.items():
-            new_dataset[key] = Tensor(value)
+            if key != 'attention_labels':
+                new_dataset[key] = Tensor(value)
+            else:
+                new_dataset[key] = Tensor(value[0])
         
         new_datasets.append(Dataset.from_dict(new_dataset))
 
@@ -163,6 +194,7 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
     logger.warning(f'Tokenizing dataset using {tokenizer} tokenizer.')
     tokenize = AutoTokenizer.from_pretrained(tokenizer) #tokenizer)
 
+    # Check if hierarchical
     if type(dataset['train']['facts'][0]) == str:
         dataset = dataset.map(
                 lambda x: tokenize(x['facts'], padding=padding, truncation=truncation, max_length=max_length),

@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from glob import glob
-from typing import List
+from typing import Dict, List
 import pandas as pd
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
@@ -11,8 +11,22 @@ import torch
 # Initialize Logger
 logger = logging.Logger('dataset')
 
-def __process_echr_dataset(path: str) -> Dataset:
-    """Processes a split of the ECHR dataset.
+def map_silver_rationale(example: Dict, df: pd.DataFrame) -> Dict:
+    try:
+        mapped_case = df.loc[example['ids']]
+        return {
+            'rationale': mapped_case['rationale'],
+            'attention_label_mask': 1
+        }
+
+    except KeyError:
+        return {
+            'rationale': [],
+            'attention_label_mask': 0
+        }
+
+def process_echr_dataset(path: str) -> Dataset:
+    """Processes a split of the ECHR dataset from 2019.
 
     Args:
         path (str): path to dataset.
@@ -41,14 +55,46 @@ def __process_echr_dataset(path: str) -> Dataset:
     custom_dataset = Dataset.from_pandas(df)
     return custom_dataset
 
-def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True,
-                          seed: int=1111) -> DatasetDict:
+def process_echtr_dataset(path: str) -> pd.DataFrame:
+    """Preprocesses ECHR dataset from 2021 to augment old dataset with silver rationales.
+
+    Args:
+        path (str): path to dataset split.
+
+    Returns:
+        pd.DataFrame: dataframe matching case IDs with silver rationales.
+    """
+    data = {
+        'ids': [],
+        'rationale': [],
+    }
+
+    all_files = glob(os.path.join(path, '*.jsonl'))
+    for file in all_files:
+        with open(file, 'r') as json_file:
+            json_list = list(json_file)
+
+        for json_str in tqdm(json_list):
+            case_data = json.loads(json_str)
+            data['rationale'].append(case_data['silver_rationales'])
+            data['ids'].append(case_data['case_id'])
+
+    df = pd.DataFrame.from_dict(data)
+    df = df.drop_duplicates(subset=['ids'])
+    df = df.set_index('ids')
+    return df
+
+def generate_echr_dataset(path: str, n_subset: int=None, attention_forcing: bool=False,
+                          shuffle: bool=True, seed: int=1111) -> DatasetDict:
     """Generates the Chalkidis 2019 ECHR dataset.
 
     Args:
         path (str): path to dataset.
         n_subset (int, optional): size of the sampled dataset splits. If None, 
             all data is selected. Defaults to None.
+        attention_forcing (bool, optional): whether attention forcing will be used.
+            If set to true, enriches dataset with the 2021 version of the dataset
+            (ECtHR) wherever possible.
         shuffle (bool, optional): whether data should be shuffled. Defaults to True.
         seed (int, optional): seed for shuffling. Defaults to 1111.
 
@@ -59,10 +105,12 @@ def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True,
         DatasetDict: ECHR dataset.
     """
     logger.warning(f'Loading dataset from path: {path}')
-    train = __process_echr_dataset(f'{path}/EN_train')
-    val = __process_echr_dataset(f'{path}/EN_dev')
-    test = __process_echr_dataset(f'{path}/EN_test')
+
+    train = process_echr_dataset(f'{path}/ECHR_Dataset/EN_train')
+    val = process_echr_dataset(f'{path}/ECHR_Dataset/EN_dev')
+    test = process_echr_dataset(f'{path}/ECHR_Dataset/EN_test')
     splits = [train, val, test]
+
     logger.warning('Loaded train, val, and test splits.')
 
     if train.num_rows == 0:
@@ -81,6 +129,11 @@ def generate_echr_dataset(path: str, n_subset: int=None, shuffle: bool=True,
         val=splits[1],
         test=splits[2]
     )
+
+    if attention_forcing:
+        ecthr_df = process_echtr_dataset(f'{path}/ECTHR_Dataset/')
+        echr_dataset = echr_dataset.map(lambda x: map_silver_rationale(x, ecthr_df))
+
     return echr_dataset
 
 class HierarchicalDataset(torch.utils.data.Dataset):
@@ -92,6 +145,12 @@ class HierarchicalDataset(torch.utils.data.Dataset):
 
         if 'token_type_ids' in dataset.column_names:
             self.token_type_ids = self.__stack_tensors__(dataset['token_type_ids'])
+
+        if 'attention_labels' in dataset.column_names:
+            self.attention_labels = dataset['attention_labels']
+
+        if 'attention_label_mask' in dataset.column_names:
+            self.attention_label_mask = dataset['attention_label_mask']
 
     def __len__(self):
         return self.labels.size()[0]
@@ -110,8 +169,20 @@ class HierarchicalDataset(torch.utils.data.Dataset):
             'labels': self.labels[idx]
         }
 
+        # Token type IDs used by some tokenizer such as BERT
         try:
             sample_dict['token_type_ids'] = self.token_type_ids[idx]
+        except AttributeError:
+            pass
+
+        # Label generation for attention forcing training
+        try:
+            sample_dict['attention_labels'] = self.attention_labels[idx]
+        except AttributeError:
+            pass
+
+        try:
+            sample_dict['attention_label_mask'] = self.attention_label_mask[idx]
         except AttributeError:
             pass
         
