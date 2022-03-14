@@ -85,7 +85,8 @@ def __to_hierarchical(example: Dict, max_paragraphs: int) -> Dict:
   
 def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
                        hierarchical: bool=False, alexa: bool=False,
-                       max_paragraphs: int=64, max_paragraph_len: int=512) -> DatasetDict:
+                       max_paragraphs: int=64, max_paragraph_len: int=512,
+                       remove_cols: bool=True) -> DatasetDict:
     """Preprocesses dataset.
 
     Args:
@@ -96,6 +97,8 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
         alexa (bool, optional): whether the attention forcing model is used. Defaults to False.
         max_paragraphs (int, optional): maximum number of paragraphs considered. Defaults to 64.
         max_paragraph_len (int, optional): maximum length of paragraphs. Defaults to 128.
+        remove_cols (bool, optional): if columns not required for the model should be removed.
+                                      Defaults to True.
 
     Returns:
         DatasetDict: preprocessed dataset.
@@ -108,7 +111,9 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
     elif alexa:
         dataset = dataset.map(lambda x: __to_hierarchical(x, max_paragraphs))
         dataset = dataset.map(lambda x: __create_attn_labels(x, max_paragraphs))
-        dataset = dataset.remove_columns(['rationale'])
+
+        if remove_cols:
+            dataset = dataset.remove_columns(['rationale'])
     else:
         dataset = dataset.map(__merge_facts)
     
@@ -122,17 +127,20 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
 
         dataset = dataset.map(lambda x: __to_one_hot(x, mapping))
 
-    dataset = tokenize(dataset, tokenizer, max_length=max_paragraph_len)
+    dataset = tokenize(dataset, tokenizer, max_length=max_paragraph_len, remove_cols=remove_cols)
     dataset.set_format('torch')
     return dataset
 
-def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max_length: int) -> DatasetDict:
+def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, 
+                            max_length: int, remove_cols: bool=True) -> DatasetDict:
     """Tokenizes hierarchical datasets.
 
     Args:
         datasets (Dict): datasets.
         tokenizer (AutoTokenizer): tokenizer function.
         max_length (int): maximum sentence length.
+        remove_cols (bool, optional): if columns not required for the model should be removed.
+                                      Defaults to True.
 
     Returns:
         DatasetDict: new datasets.
@@ -149,6 +157,11 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max
             'labels': dataset['labels'],
         }
 
+        if remove_cols == False:
+            print('... Not removing facts and rationales.')
+            new_dataset['facts'] = dataset['facts']
+            new_dataset['rationale'] = dataset['rationale']
+
         tokenized = tokenizer(facts,  padding=True, truncation=True, max_length=max_length)
         new_dataset['input_ids'] = np.array(tokenized['input_ids']).reshape((n_examples, n_paragraphs, -1))
         new_dataset['attention_mask'] = np.array(tokenized['attention_mask']).reshape((n_examples, n_paragraphs, -1))
@@ -161,10 +174,13 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max
             new_dataset['attention_label_mask'] = dataset['attention_label_mask']
 
         for key, value in new_dataset.items():
-            if key != 'attention_labels':
-                new_dataset[key] = Tensor(value)
-            else:
-                new_dataset[key] = Tensor(value[0])
+            try:
+                if key != 'attention_labels':
+                    new_dataset[key] = Tensor(value)
+                else:
+                    new_dataset[key] = Tensor(value[0])
+            except ValueError:
+                pass
         
         new_datasets.append(Dataset.from_dict(new_dataset))
 
@@ -178,7 +194,7 @@ def __tokenize_hierarchical(datasets: DatasetDict, tokenizer: AutoTokenizer, max
 
 
 def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
-             truncation: bool=True, max_length: int=512) -> DatasetDict:
+             truncation: bool=True, max_length: int=512, remove_cols: bool=True) -> DatasetDict:
     """Tokenizes dataset.
 
     Args:
@@ -187,6 +203,8 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
         padding (bool, optional): whether sequence should be padded. Defaults to True.
         truncation (bool, optional): whether sequence should be truncated. Defaults to True.
         max_length (int, optional): max sequence length. Defaults to 512.
+        remove_cols (bool, optional): if columns not required for the model should be removed.
+                                      Defaults to True.
 
     Returns:
         DatasetDict: tokenized dataset.
@@ -200,9 +218,11 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
                 lambda x: tokenize(x['facts'], padding=padding, truncation=truncation, max_length=max_length),
                     batched=True,
                     batch_size=16)
-        dataset = dataset.remove_columns(['facts', 'articles', 'ids'])
+
+        if remove_cols:
+            dataset = dataset.remove_columns(['facts', 'articles', 'ids'])
     else:
-        dataset = __tokenize_hierarchical(dataset, tokenize, max_length=max_length)
+        dataset = __tokenize_hierarchical(dataset, tokenize, max_length=max_length, remove_cols=remove_cols)
     
     return dataset
     
