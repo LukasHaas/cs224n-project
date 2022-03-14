@@ -106,9 +106,9 @@ def generate_echr_dataset(path: str, n_subset: int=None, attention_forcing: bool
     """
     logger.warning(f'Loading dataset from path: {path}')
 
-    train = process_echr_dataset(f'{path}/ECHR_Dataset/EN_train')
-    val = process_echr_dataset(f'{path}/ECHR_Dataset/EN_dev')
-    test = process_echr_dataset(f'{path}/ECHR_Dataset/EN_test')
+    train = process_echr_dataset(f'{path}/EN_train')
+    val = process_echr_dataset(f'{path}/EN_dev')
+    test = process_echr_dataset(f'{path}/EN_test')
     splits = [train, val, test]
 
     logger.warning('Loaded train, val, and test splits.')
@@ -131,7 +131,7 @@ def generate_echr_dataset(path: str, n_subset: int=None, attention_forcing: bool
     )
 
     if attention_forcing:
-        ecthr_df = process_echtr_dataset(f'{path}/ECTHR_Dataset/')
+        ecthr_df = process_echtr_dataset(f'{path}')
         echr_dataset = echr_dataset.map(lambda x: map_silver_rationale(x, ecthr_df))
 
     return echr_dataset
