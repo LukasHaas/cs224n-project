@@ -33,7 +33,7 @@ argp.add_argument('-b', '--base-model',
     default='bert-base-uncased')
 argp.add_argument('-e', '--evaluate', help='Set flag to evaluate on test set.',
                   action='store_true', default=False)
-argp.add_argument('-l', '----load', help='Set flag to load processed data.',
+argp.add_argument('-l', '--load', help='Set flag to load processed data.',
                   action='store_true', default=False)
 argp.add_argument('--hierarchical', help='Set flag to use hierarchical model version.',
                   action='store_true', default=False)
