@@ -1,12 +1,10 @@
-import math
-import numpy as np
 import torch
 from torch import nn, Tensor
 from positional_encoder import PositionalEncoder
  
 class HierarchicalModel(nn.Module):
     def __init__(self, base_model: nn.Module, num_labels: int=1, max_parags: int=48, max_parag_length: int=224,
-                 hier_layers: int=2, freeze_base: bool=False):
+                 hier_layers: int=2, freeze_base: bool=False, label_weights: Tensor=None, pos_weights: Tensor=None):
         """A hierarchical model using a transformer-based base model as a base.
 
         Args:
@@ -17,6 +15,10 @@ class HierarchicalModel(nn.Module):
             hier_layers (int, optional): number of hierarchical transformer layers. If 0 layers are chosen,
                                          a simple multi-head self-attention layer is used. Defaults to 2.
             freeze_base (int, optional): whether base model parameters should be freezed. Defaults to False.
+            label_weights (Tensor, optional): a weight of positive examples. Must be a vector with length equal
+                                              to the number of classes. Defaults to None.
+            pos_weights (Tensor, optional): a weight of positive examples. Must be a vector with length equal to
+                                            the number of classes. Defaults to None.
         """
         super(HierarchicalModel, self).__init__()
         print(f'Initializing hierarchical model with input shape [-1, {max_parags}, {max_parag_length}].')
@@ -27,7 +29,7 @@ class HierarchicalModel(nn.Module):
             for param in self.base_model.parameters():
                 param.requires_grad = False
 
-        self.num_labels = num_labels
+        self.num_labels = num_labels 
         self.hidden_size = base_model.config.hidden_size
         self.max_parags = max_parags
         self.max_parag_length = max_parag_length
@@ -58,6 +60,9 @@ class HierarchicalModel(nn.Module):
 
         # Classification prediction head
         self.cls_head = nn.Linear(self.hidden_size, num_labels)
+
+        # Loss
+        self.loss_fnc = nn.BCEWithLogitsLoss(weight=label_weights, pos_weight=pos_weights)
 
     def forward(self, paragraph_attention_mask: Tensor, input_ids: Tensor, attention_mask: Tensor, 
                 labels: Tensor, token_type_ids: Tensor=None) -> Tensor:
@@ -124,7 +129,5 @@ class HierarchicalModel(nn.Module):
         if self.num_labels == 1:
             labels = torch.unsqueeze(labels, 1)
 
-        loss_fnc = nn.BCEWithLogitsLoss()
-        loss = loss_fnc(logits, labels)
-
+        loss = self.loss_fnc(logits, labels)
         return loss, logits

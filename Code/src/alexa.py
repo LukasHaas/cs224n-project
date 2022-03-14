@@ -168,7 +168,7 @@ class aLEXa(nn.Module):
                                                                   key_padding_mask=padding_mask,
                                                                   need_weights=False)
         
-        # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768) NOTE: Experiment with different pooling strategies
+        # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768)
         case_embeddings = case_embeddings[:, 0]
 
         # Pool paragraph attention values --> (10, 64)
@@ -192,6 +192,8 @@ class aLEXa(nn.Module):
         # Compute losses
         attn_loss = self.compute_attention_forcing_loss(attn_logits, attn_labels) * force_attn
         class_loss = self.compute_classification_loss(class_logits, class_labels)
+
+        # Weight losses
         loss = self.compute_total_loss(class_loss, attn_loss)
 
         return loss, class_logits, attn_logits

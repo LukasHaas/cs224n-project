@@ -2,9 +2,9 @@ import logging
 from typing import Any
 from transformers import AutoModelForSequenceClassification, AutoModel
 from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
-from datasets import DatasetDict
+from datasets import DatasetDict, Dataset
 from dataset import HierarchicalDataset
-from trainers import MultilabelTrainer 
+from trainers import MultilabelTrainer, aLEXaTrainer
 from evaluation import compute_binary_metrics, compute_multilabel_metrics
 from callbacks import LoggingCallback
 from hierarchical import HierarchicalModel
@@ -26,22 +26,37 @@ DEFAULT_TRAIN_ARGS = TrainingArguments(
     eval_steps=25,
     gradient_accumulation_steps=64,
     save_strategy='epoch',
-    learning_rate=5e-6, #3e-6, # 1e-5 2e-5 1e-3
+    learning_rate=2e-5, #5e-6 3e-6, # 1e-5 2e-5 1e-3
     logging_steps=1,
     load_best_model_at_end=True,
     save_steps=60,
     seed=1111
 )
 
-def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, output: str,
-                   max_paragraphs: int=64, max_paragraph_len: int=512, log: bool=True, early_stopping: int=2,
+def compute_class_weights(dataset: Dataset, pos_weight=1.0) -> Tensor:
+    """Computes class weights for the multilabel task.
+
+    Args:
+        dataset (Dataset): train dataset.
+
+    Returns:
+        Tensor: weights.
+    """
+    labels = dataset['labels']
+    label_weights = labels.sum(dim=0) / labels.sum()
+    pos_weights = Tensor([pos_weight]).repeat(label_weights.size()[0])
+    return label_weights, pos_weights
+
+def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, alexa: bool, output: str,
+                   max_paragraphs: int=64, max_paragraph_len: int=512, log: bool=True, early_stopping: int=3,
                    train_args: TrainingArguments=DEFAULT_TRAIN_ARGS) -> AutoModel:
-    """Finetunes a given Huggingface model.
+    """Finetunes a given model.
 
     Args:
         model (Any): name of Huggingface model or trainable object.
         dataset (DatasetDict): dataset.
         hierarchical (bool): if hierarchical model should be chosen.
+        alexa (bool): whether the attention forcing model is used.
         output (str): output directory of trained model.
         max_paragraphs (int, optional): maximum number of paragraphs considered. Defaults to 64.
         max_paragraph_len (int, optional): maximum length of paragraphs. Defaults to 128.
@@ -59,20 +74,32 @@ def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, output:
     train_args.__setattr__('output_dir', output)
     logger.warning(f'Downloading model: {model}.')
 
-    if type(model) == str:
-        if hierarchical:
-            base_model = AutoModel.from_pretrained(model)
-            n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
-            loaded_model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len, 2, False)
-        else:
-            loaded_model = AutoModelForSequenceClassification.from_pretrained(model, num_labels=n_train_labels)
-    else:
+    # Loaded pre-loaded
+    if type(model) != str:
         loaded_model = model
-    
-    trainer = __generate_trainer(dataset, loaded_model, hierarchical, train_args)
+
+    # Hierarchical model types
+    elif hierarchical or alexa:
+        base_model = AutoModel.from_pretrained(model)
+        n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
+        lw, pw = compute_class_weights(dataset['train'], pos_weight=1.2)
+
+        if hierarchical:
+            loaded_model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len,
+                                             hier_layers=2, freeze_base=False, label_weights=lw,
+                                             pos_weights=pw)
+        else:
+            loaded_model = aLEXa(base_model, n_train_labels, max_paragraphs, max_paragraph_len,
+                                    hier_layers=2, learn_loss_weights=True, freeze_base=False)
+
+    # Base models 
+    else:
+        loaded_model = AutoModelForSequenceClassification.from_pretrained(model, num_labels=n_train_labels)
+ 
+    trainer = generate_trainer(dataset, loaded_model, hierarchical, alexa, train_args)
 
     if log:
-        log_name = model if type(model) == str else 'loaded_model'
+        log_name = model.split('/')[-1] if type(model) == str else 'loaded_model'
         trainer.add_callback(LoggingCallback(f'finetune_trainer/log_{log_name}.jsonl'))
     
     if early_stopping > 0:
@@ -84,15 +111,18 @@ def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, output:
     return loaded_model
 
 
-def __generate_trainer(dataset: DatasetDict,
+def generate_trainer(dataset: DatasetDict,
                        model: Any,
                        hierarchical: bool,
+                       alexa: bool,
                        train_args: TrainingArguments=None) -> Trainer:
     """Generates a trainer to train for the given objective.
 
     Args:
         dataset (DatasetDict): dataset.
         model (AutoModelForSequenceClassification): model.
+        hierarchical (bool): if hierarchical model should be chosen.
+        alexa (bool): whether the attention forcing model is used.
         train_args (TrainingArguments, optional): training arguments.
             Defaults to None.
 
@@ -106,6 +136,15 @@ def __generate_trainer(dataset: DatasetDict,
 
     if hierarchical:
         return Trainer(
+            model=model,
+            args=train_args,
+            train_dataset=HierarchicalDataset(dataset['train']),
+            eval_dataset=HierarchicalDataset(dataset['val']),
+            compute_metrics=eval_fnc
+        )
+
+    if alexa:
+        return aLEXaTrainer(
             model=model,
             args=train_args,
             train_dataset=HierarchicalDataset(dataset['train']),

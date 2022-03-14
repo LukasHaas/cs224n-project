@@ -1,7 +1,7 @@
 from transformers import AutoModelForSequenceClassification, AutoModel, Trainer
 from datasets import Dataset
 from dataset import HierarchicalDataset
-from trainers import MultilabelTrainer 
+from trainers import MultilabelTrainer, aLEXaTrainer
 from typing import Tuple, Any
 import torch
 from hierarchical import HierarchicalModel
@@ -30,23 +30,32 @@ def load_model(path: str, hierarchical: bool, base_model: str=None, num_labels: 
 
     return model
 
-def predict(model: Any, dataset: Dataset, hierarchical: bool) -> Tuple:
+def predict(model: Any, dataset: Dataset, hierarchical: bool, alexa: bool) -> Tuple:
     """Makes predictions given a Huggingface model.
 
     Args:
         model (Any): trained model.
         dataset (Dataset): dataset.
-        hierarchical (bool) if using hierarchical model.
+        hierarchical (bool): if using hierarchical model.
+        alexa (bool): if using attention-forcing model.
 
     Returns:
         Tuple: prediction tuple.
     """
     labels = dataset[0]['labels']
     n_labels = 2 if labels.dim() == 0 else len(labels)
-    if hierarchical == False:
-        train_class = MultilabelTrainer if n_labels > 2 else Trainer
-        trainer = train_class(model=model)
-        return trainer.predict(dataset)
+
+    if hierarchical:
+        trainer = Trainer(model=model)
+        return trainer.predict(HierarchicalDataset(dataset))
+
+    if alexa:
+        trainer = aLEXaTrainer(model=model)
+        return trainer.predict(HierarchicalDataset(dataset))
+
+    train_class = MultilabelTrainer if n_labels > 2 else Trainer
+    trainer = train_class(model=model)
+    return trainer.predict(dataset)
 
     # trainloader = torch.utils.data.DataLoader(HierarchicalDataset(dataset), shuffle=False, batch_size=32)
     # logits = []
@@ -60,6 +69,3 @@ def predict(model: Any, dataset: Dataset, hierarchical: bool) -> Tuple:
 
     # logits = torch.stack(logits)
     # return logits
-    trainer = Trainer(model=model)
-    predictions = trainer.predict(HierarchicalDataset(dataset))
-    return predictions

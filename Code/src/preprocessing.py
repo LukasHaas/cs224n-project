@@ -65,8 +65,8 @@ def __to_hierarchical(example: Dict, max_paragraphs: int) -> Dict:
     }
   
 def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
-                       hierarchical: bool=False, max_paragraphs: int=64,
-                       max_paragraph_len: int=512) -> DatasetDict:
+                       hierarchical: bool=False, alexa: bool=False,
+                       max_paragraphs: int=64, max_paragraph_len: int=512) -> DatasetDict:
     """Preprocesses dataset.
 
     Args:
@@ -74,6 +74,7 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
         objective (str): either binary or multilabel.
         tokenizer (str): name of Huggingface tokenizer.
         hierarchical (bool, optional): whether model is hierarchical. Defaults to False.
+        alexa (bool, optional): whether the attention forcing model is used. Defaults to False.
         max_paragraphs (int, optional): maximum number of paragraphs considered. Defaults to 64.
         max_paragraph_len (int, optional): maximum length of paragraphs. Defaults to 128.
 
@@ -83,7 +84,7 @@ def preprocess_dataset(dataset: DatasetDict, objective: str, tokenizer: str,
     logger.warning(f'Preprocessing dataset for {objective} classification objective.')
     assert objective in OBJECTIVES, f'Objective must be one of {OBJECTIVES}.'
 
-    if hierarchical:
+    if hierarchical or alexa:
         dataset = dataset.map(lambda x: __to_hierarchical(x, max_paragraphs))
     else:
         dataset = dataset.map(__merge_facts)
@@ -163,6 +164,7 @@ def tokenize(dataset: DatasetDict, tokenizer: str, padding: bool=True,
     logger.warning(f'Tokenizing dataset using {tokenizer} tokenizer.')
     tokenize = AutoTokenizer.from_pretrained(tokenizer) #tokenizer)
 
+    # Check if hierarchical
     if type(dataset['train']['facts'][0]) == str:
         dataset = dataset.map(
                 lambda x: tokenize(x['facts'], padding=padding, truncation=truncation, max_length=max_length),
