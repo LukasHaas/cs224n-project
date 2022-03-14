@@ -66,7 +66,7 @@ if args.function == 'finetune':
                            args.output, max_paragraphs, max_paragraph_len)
 
 else:
-    model = load_model(args.name, args.hierarchical, args.base_model, num_labels, max_paragraphs, max_paragraph_len)
+    model = load_model(args.name, args.hierarchical, args.alexa, args.base_model, num_labels, max_paragraphs, max_paragraph_len)
     if args.function == 'loadtune':
         model = finetune_model(model, dataset, args.hierarchical, args.output, max_paragraphs, max_paragraph_len)
 

@@ -74,5 +74,6 @@ def evaluate(model: Any, dataset: Any, hierarchical: bool, alexa: bool):
     eval_fnc = compute_binary_metrics if train_labels.dim() == 0 else compute_multilabel_metrics
     if alexa:
         eval_fnc = compute_alexa_binary_metrics
+        
     evaluation = eval_fnc(predictions)
     print(evaluation)

@@ -117,7 +117,7 @@ class HierarchicalModel(nn.Module):
                                              key_padding_mask=padding_mask,
                                              need_weights=False)[0]
         
-        # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768) NOTE: Experimented with different pooling strategies
+        # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768)
         case_embeddings = case_embeddings[:, 0]
 
         # Dropout

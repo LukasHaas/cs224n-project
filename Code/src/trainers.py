@@ -13,5 +13,6 @@ class MultilabelTrainer(Trainer):
 
 class aLEXaTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
-        loss, class_logits, attn_logits = model(**inputs)
-        return (loss, class_logits) if return_outputs else loss 
+        loss, output = model(**inputs)
+        print(len(output))
+        return (loss, output) if return_outputs else loss 
