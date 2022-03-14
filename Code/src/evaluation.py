@@ -10,6 +10,7 @@ logger = logging.getLogger('evaluation')
 def compute_binary_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     logits, labels = eval_pred.predictions, eval_pred.label_ids
+    print(logits)
     predictions = np.round(sigmoid(logits))
     eval_dict = {
         'precision': precision_score(labels, predictions, average='macro'),

@@ -61,9 +61,9 @@ class aLEXa(nn.Module):
         
         # Learn multi-task loss weighting
         if learn_loss_weights:
-            self.class_weight = nn.Parameter(torch.rand(1))
+            self.class_weight = nn.Parameter(0.5)
             self.class_weight.requires_grad = True
-            self.attn_forcing_weight = nn.Parameter(torch.rand(1))
+            self.attn_forcing_weight = nn.Parameter(0.9)
             self.attn_forcing_weight.requires_grad = True
 
         # Dropout
@@ -121,7 +121,7 @@ class aLEXa(nn.Module):
             weighted_attn_loss = (1 / (2 * (self.attn_forcing_weight ** 2))) * attn_loss
             regularization = torch.log(self.class_weight * self.attn_forcing_weight)
             loss = weighted_class_loss + weighted_attn_loss + regularization
-            return loss
+            return loss[0]
 
         raise NotImplementedError('Manual loss weighted has not been implemented.')
 
@@ -148,11 +148,11 @@ class aLEXa(nn.Module):
 
         # Combine first two dimensions to feed through base model (batch_size * n_paragraphs, max_parag_length) --> (640, 128)
         device = input_ids.get_device()
-        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor)#.to(device)
-        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor)#.to(device)
+        input_ids_reshape = input_ids.contiguous().view(-1, input_ids.size(-1)).type(torch.LongTensor).to(device)
+        attention_mask_reshape = attention_mask.contiguous().view(-1, attention_mask.size(-1)).type(torch.LongTensor).to(device)
         token_type_ids_reshape = None
         if token_type_ids is not None:
-            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor)#.to(device)
+            token_type_ids_reshape = token_type_ids.contiguous().view(-1, token_type_ids.size(-1)).type(torch.LongTensor).to(device)
 
         # If i.e using BERT as encoder: 768 hidden units
         # Encode sentences with BERT --> (640, 768)
@@ -181,16 +181,17 @@ class aLEXa(nn.Module):
         case_embeddings = case_embeddings[:, 0]
 
         # Pool paragraph attention values --> (10, 64)
-        attn_output_weights = attn_output_weights[:, 0]
+        print(attn_output_weights.size())
+        attn_output_weights = attn_output_weights.sum(dim=1)
 
         # Reshape attention tensor to perform same transformation on all values -> (640, 1)
-        attn_output_weights = attn_output_weights.contiguous().view(-1, 1).type(torch.LongTensor)#.to(device)
+        attn_output_weights = attn_output_weights.contiguous().view(-1, 1).to(device)
 
         # Linear transform attention values --> (640, 1)
         attn_logits = self.attn_head(attn_output_weights)
 
         # Reshape attention tensor back to original form
-        attn_logits = attn_logits.contiguous().view(-1, self.max_parags).type(torch.LongTensor)#.to(device)
+        attn_logits = attn_logits.contiguous().view(-1, self.max_parags).to(device)
 
         # Dropout
         case_embeddings = self.dropout(case_embeddings)
@@ -202,12 +203,11 @@ class aLEXa(nn.Module):
         attn_loss = self.compute_attention_forcing_loss(attn_logits, attention_labels) * attention_label_mask
         class_loss = self.compute_classification_loss(class_logits, labels)
 
-        print(attn_loss)
-        print(class_loss)
+        # Compute Scalar Weights
+        class_factor = 1 / (2 * (self.class_weight ** 2))
+        attn_factor = 1 / (2 * (self.attn_forcing_weight ** 2))
 
         # Weigh losses
         loss = self.compute_total_loss(class_loss, attn_loss)
-        print(loss)
-        print(self.class_weight, self.attn_forcing_weight)
 
-        return loss, class_logits, attn_logits
+        return loss, (class_logits, attn_logits, class_factor, attn_factor)
