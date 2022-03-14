@@ -23,7 +23,9 @@ def load_model(path: str, hierarchical: bool, base_model: str=None, num_labels: 
     if hierarchical:
         checkpoint = torch.load(path)
         base_model = AutoModel.from_pretrained(base_model)
-        model = HierarchicalModel(base_model, num_labels, max_paragraphs, max_paragraph_len, 2, False)
+        model = HierarchicalModel(base_model, num_labels, max_paragraphs, max_paragraph_len,
+                                  hier_layers=2, freeze_base=False, label_weights=torch.ones(num_labels),
+                                  pos_weights=torch.ones(num_labels))
         model.load_state_dict(checkpoint)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(path)

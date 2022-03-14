@@ -42,17 +42,19 @@ argp.add_argument('--alexa', help='Set flag to use attention-forcing aLEXa model
 args = argp.parse_args()
 
 logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.objective} classification on dataset at {args.data}.')
+
+# Variables
 n_subset = int(args.sample) if args.sample is not None else None
 max_paragraph_len = 224 if args.hierarchical else 224
 max_paragraphs = 48
 num_labels = 21 if args.objective == 'multilabel' else 1
-
+base_model = args.name if args.function == 'finetune' else args.base_model
 
 # Load dataset
 if args.load == False:
     dataset = generate_echr_dataset(args.data, n_subset=n_subset, attention_forcing=args.alexa)
-    dataset = preprocess_dataset(dataset, args.objective, args.name, args.hierarchical, 
-                                    args.alexa, max_paragraphs, max_paragraph_len)
+    dataset = preprocess_dataset(dataset, args.objective, base_model, args.hierarchical, 
+                                 args.alexa, max_paragraphs, max_paragraph_len)
     # dataset.save_to_disk('processed_data/data')
     
 else:
@@ -70,4 +72,4 @@ else:
 
 # Evaluate on test set
 if args.evaluate:
-    evaluate(model, dataset, args.hierarchical)
+    evaluate(model, dataset, args.hierarchical, args.alexa)
