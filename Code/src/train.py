@@ -146,7 +146,7 @@ def generate_trainer(dataset: DatasetDict,
         )
 
     if alexa:
-        return aLEXaTrainer(
+        return Trainer(
             model=model,
             args=train_args,
             train_dataset=HierarchicalDataset(dataset['train']),
