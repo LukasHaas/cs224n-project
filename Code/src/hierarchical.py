@@ -29,6 +29,7 @@ class HierarchicalModel(nn.Module):
             for param in self.base_model.parameters():
                 param.requires_grad = False
 
+        # Save variables
         self.num_labels = num_labels 
         self.hidden_size = base_model.config.hidden_size
         self.max_parags = max_parags

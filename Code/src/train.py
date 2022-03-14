@@ -26,7 +26,7 @@ DEFAULT_TRAIN_ARGS = TrainingArguments(
     eval_steps=25,
     gradient_accumulation_steps=64,
     save_strategy='epoch',
-    learning_rate=2e-5, #5e-6 3e-6, # 1e-5 2e-5 1e-3
+    learning_rate=2e-5, #5e-6 3e-6 # 1e-5 2e-5 1e-3
     logging_steps=1,
     load_best_model_at_end=True,
     seed=1111
@@ -42,8 +42,10 @@ def compute_class_weights(dataset: Dataset, pos_weight=1.0) -> Tensor:
         Tensor: weights.
     """
     labels = dataset['labels']
-    label_weights = labels.sum(dim=0) / labels.sum()
-    pos_weights = Tensor([pos_weight]).repeat(label_weights.size()[0])
+    label_sums = labels.sum(dim=0)
+    n_labels = label_sums.size()[0]
+    label_weights = (label_sums / labels.sum()) * n_labels
+    pos_weights = Tensor([pos_weight]).repeat(n_labels)
     return label_weights, pos_weights
 
 def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, alexa: bool, output: str,

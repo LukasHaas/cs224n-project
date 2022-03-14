@@ -23,12 +23,15 @@ class aLEXa(nn.Module):
                                             the number of classes. Defaults to None.
         """
         super(aLEXa, self).__init__()
-        # Sentence encoder model forming the base of ther hierarchical model
+        print(f'Initializing hierarchical aLEXa model with input shape [-1, {max_parags}, {max_parag_length}].')
+
+        # Encoder model forming the base of the hierarchical model
         self.base_model = base_model
         if freeze_base:
             for param in self.base_model.parameters():
                 param.requires_grad = False
 
+        # Save variables
         self.num_labels = num_labels
         self.hidden_size = base_model.config.hidden_size
         self.max_parags = max_parags
@@ -123,7 +126,7 @@ class aLEXa(nn.Module):
             loss = weighted_class_loss + weighted_attn_loss + regularization
             return loss
 
-        raise NotImplementedError('Manual loss weighted has not been implemented.')
+        raise NotImplementedError('Manual loss weighing has not been implemented.')
 
     def forward(self, paragraph_attention_mask: Tensor, input_ids: Tensor, attention_mask: Tensor, 
                 labels: Tensor, attention_labels: Tensor, attention_label_mask: Tensor,
