@@ -64,9 +64,9 @@ class aLEXa(nn.Module):
         
         # Learn multi-task loss weighting
         if learn_loss_weights:
-            self.class_weight = nn.Parameter(0.5)
+            self.class_weight = nn.Parameter(Tensor([0.5]))
             self.class_weight.requires_grad = True
-            self.attn_forcing_weight = nn.Parameter(0.9)
+            self.attn_forcing_weight = nn.Parameter(Tensor([0.9]))
             self.attn_forcing_weight.requires_grad = True
 
         # Dropout
@@ -108,13 +108,18 @@ class aLEXa(nn.Module):
         loss = self.attn_loss_fnc(logits, labels)
         return loss
 
-    def compute_total_loss(self, class_loss: Tensor, attn_loss: Tensor) -> Tensor:
+    def compute_total_loss(self, class_loss: Tensor, attn_loss: Tensor,
+                           attn_label_mask: Tensor) -> Tensor:
         """Computes attention forcing binary cross-entropy loss.
+
+        Weighs multi-task losses if attention labels avaialble, otherwise
+        chooses classification cross-entropy loss.
 
         Args:
             logits (Tensor): pre-sigmoid model output.
             class_loss (Tensor): classification loss.
             attn_loss (Tensor): attention forcing loss.
+            attn_label_mask (Tensor): attention label mask.
 
         Returns:
             Tensor: loss.
@@ -123,7 +128,8 @@ class aLEXa(nn.Module):
             weighted_class_loss = (1 / (2 * (self.class_weight ** 2))) * class_loss
             weighted_attn_loss = (1 / (2 * (self.attn_forcing_weight ** 2))) * attn_loss
             regularization = torch.log(self.class_weight * self.attn_forcing_weight)
-            loss = weighted_class_loss + weighted_attn_loss + regularization
+            loss = (weighted_class_loss + weighted_attn_loss + regularization)[0]
+            loss = attn_label_mask * loss + (1 - attn_label_mask) * class_loss
             return loss[0]
 
         raise NotImplementedError('Manual loss weighing has not been implemented.')
@@ -184,7 +190,6 @@ class aLEXa(nn.Module):
         case_embeddings = case_embeddings[:, 0]
 
         # Pool paragraph attention values --> (10, 64)
-        print(attn_output_weights.size())
         attn_output_weights = attn_output_weights.sum(dim=1)
 
         # Reshape attention tensor to perform same transformation on all values -> (640, 1)
@@ -211,6 +216,5 @@ class aLEXa(nn.Module):
         attn_factor = 1 / (2 * (self.attn_forcing_weight ** 2))
 
         # Weigh losses
-        loss = self.compute_total_loss(class_loss, attn_loss)
-
-        return loss, (class_logits, attn_logits, class_factor, attn_factor)
+        loss = self.compute_total_loss(class_loss, attn_loss, attention_label_mask)
+        return loss, (attention_labels, attention_label_mask, class_logits, attn_logits, attn_factor, class_factor)

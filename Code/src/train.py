@@ -5,7 +5,7 @@ from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
 from datasets import DatasetDict, Dataset
 from dataset import HierarchicalDataset
 from trainers import MultilabelTrainer, aLEXaTrainer
-from evaluation import compute_binary_metrics, compute_multilabel_metrics
+from evaluation import compute_binary_metrics, compute_multilabel_metrics, compute_alexa_binary_metrics
 from callbacks import LoggingCallback
 from hierarchical import HierarchicalModel
 from alexa import aLEXa
@@ -83,7 +83,9 @@ def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, alexa: 
     elif hierarchical or alexa:
         base_model = AutoModel.from_pretrained(model)
         n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
-        lw, pw = compute_class_weights(dataset['train'], pos_weight=1.2)
+        lw, pw = None, None
+        if n_train_labels > 1:
+            lw, pw = compute_class_weights(dataset['train'], pos_weight=1.2)
 
         if hierarchical:
             loaded_model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len,
@@ -151,7 +153,7 @@ def generate_trainer(dataset: DatasetDict,
             args=train_args,
             train_dataset=HierarchicalDataset(dataset['train']),
             eval_dataset=HierarchicalDataset(dataset['val']),
-            compute_metrics=eval_fnc
+            compute_metrics=compute_alexa_binary_metrics
         )
 
     return class_name(
