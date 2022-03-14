@@ -1,9 +1,9 @@
 import os
 import json
 import logging
+import pandas as pd
 from glob import glob
 from typing import Dict, List
-import pandas as pd
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
 import torch
@@ -106,9 +106,9 @@ def generate_echr_dataset(path: str, n_subset: int=None, attention_forcing: bool
     """
     logger.warning(f'Loading dataset from path: {path}')
 
-    train = process_echr_dataset(f'{path}/EN_train')
-    val = process_echr_dataset(f'{path}/EN_dev')
-    test = process_echr_dataset(f'{path}/EN_test')
+    train = process_echr_dataset(f'{path}/ECHR_Dataset/EN_train')
+    val = process_echr_dataset(f'{path}/ECHR_Dataset/EN_dev')
+    test = process_echr_dataset(f'{path}/ECHR_Dataset/EN_test')
     splits = [train, val, test]
 
     logger.warning('Loaded train, val, and test splits.')

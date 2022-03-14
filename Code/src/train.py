@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 from typing import Any
 from transformers import AutoModelForSequenceClassification, AutoModel
 from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
@@ -31,6 +32,23 @@ DEFAULT_TRAIN_ARGS = TrainingArguments(
     load_best_model_at_end=True,
     seed=1111
 )
+
+def check_rationales_loaded(dataset: Dataset):
+    """Checks that case rationales for aLEXa were loaded.
+
+    Args:
+        dataset (Dataset): the dataset.
+
+    Raises:
+        Exception: if no case rationales were loaded.
+    """
+    for split in ['train', 'val', 'test']:
+        num_rows = dataset[split].num_rows
+        share_rationale = np.array(dataset[split]['attention_label_mask']).sum() / num_rows
+        if share_rationale == 0:
+            raise Exception('No rationales were loaded.')
+
+        logger.warning(f'{split} split of data has rationales for {share_rationale * 100:.2f} % of rows.')
 
 def compute_class_weights(dataset: Dataset, pos_weight=1.0) -> Tensor:
     """Computes class weights for the multilabel task.
@@ -92,6 +110,7 @@ def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, alexa: 
                                              hier_layers=2, freeze_base=False, label_weights=lw,
                                              pos_weights=pw)
         else:
+            check_rationales_loaded(dataset)
             loaded_model = aLEXa(base_model, n_train_labels, max_paragraphs, max_paragraph_len,
                                     hier_layers=1, learn_loss_weights=True, freeze_base=False,
                                     label_weights=lw, pos_weights=pw)
