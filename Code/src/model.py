@@ -1,7 +1,7 @@
 from transformers import AutoModelForSequenceClassification, AutoModel, Trainer
 from datasets import Dataset
 from dataset import HierarchicalDataset
-from trainers import MultilabelTrainer, aLEXaTrainer
+from trainers import MultilabelTrainer
 from typing import Tuple, Any
 import torch
 from hierarchical import HierarchicalModel
@@ -69,16 +69,3 @@ def predict(model: Any, dataset: Dataset, hierarchical: bool, alexa: bool) -> Tu
     train_class = MultilabelTrainer if n_labels > 2 else Trainer
     trainer = train_class(model=model)
     return trainer.predict(dataset)
-
-    # trainloader = torch.utils.data.DataLoader(HierarchicalDataset(dataset), shuffle=False, batch_size=32)
-    # logits = []
-
-    # with torch.cuda.device(1):
-    #     with torch.no_grad():
-    #         model.eval()
-    #         for data in tqdm(trainloader):
-    #             _, batch_logits = model(**data)
-    #             logits += batch_logits
-
-    # logits = torch.stack(logits)
-    # return logits

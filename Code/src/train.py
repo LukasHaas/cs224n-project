@@ -5,7 +5,7 @@ from transformers import AutoModelForSequenceClassification, AutoModel
 from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
 from datasets import DatasetDict, Dataset
 from dataset import HierarchicalDataset
-from trainers import MultilabelTrainer, aLEXaTrainer
+from trainers import MultilabelTrainer
 from evaluation import compute_binary_metrics, compute_multilabel_metrics, compute_alexa_binary_metrics, compute_alexa_multilabel_metrics
 from callbacks import LoggingCallback
 from hierarchical import HierarchicalModel

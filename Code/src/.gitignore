@@ -4,3 +4,4 @@ tmp_trainer/*
 runs/*
 mlruns/*
 processed_data/*
+finetune_trainer/

@@ -1,3 +1,6 @@
+torch
+numpy
+pandas
 tqdm
 transformers
 datasets

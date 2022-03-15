@@ -1,3 +1,5 @@
+# Code is adapted from PyTorch
+
 import copy
 import torch.nn.functional as F
 from torch import Tensor, clone

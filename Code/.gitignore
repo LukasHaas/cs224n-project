@@ -10,3 +10,4 @@ mlruns/*
 runs/*
 bert_trainer/*
 *_tokenized
+Hugging_Face_Transformers_Tutorial.ipynb
