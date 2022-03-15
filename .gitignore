@@ -1,5 +1,5 @@
-Data/*
-Results/*
+Data/
+Results/
 *.DS_Store
 *.pdf
 *.docx
