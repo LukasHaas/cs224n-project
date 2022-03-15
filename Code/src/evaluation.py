@@ -21,7 +21,6 @@ def compute_binary_metrics(eval_pred):
 def compute_alexa_binary_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     output, labels = eval_pred.predictions, eval_pred.label_ids
-    print(output)
     attn_labels, attn_mask, class_logits, attn_logits, attn_factor, class_factor = output
 
     attn_labels = attn_labels.astype(int)[attn_mask.astype(int)]
@@ -32,9 +31,32 @@ def compute_alexa_binary_metrics(eval_pred):
         'precision': precision_score(labels, cls_predictions, average='macro'),
         'recall': recall_score(labels, cls_predictions, average='macro'),
         'f1': f1_score(labels, cls_predictions, average='macro'),
-        'attn_precision': precision_score(attn_labels, attn_predictions, average='macro', zero_division=1),
-        'attn_recall': recall_score(attn_labels, attn_predictions, average='macro', zero_division=1),
-        'attn_f1': recall_score(attn_labels, attn_predictions, average='macro', zero_division=1),
+        'attn_precision': precision_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'attn_recall': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'attn_f1': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'class_factor': class_factor[0],
+        'attn_factor': attn_factor[0],
+        # 'class_loss': class_loss,
+        # 'attn_loss': attn_loss
+    }
+    return eval_dict
+
+def compute_alexa_multilabel_metrics(eval_pred):
+    """Called at the end of validation. Gives accuracy"""
+    output, labels = eval_pred.predictions, eval_pred.label_ids
+    attn_labels, attn_mask, class_logits, attn_logits, attn_factor, class_factor = output
+
+    attn_labels = attn_labels.astype(int)[attn_mask.astype(int)]
+    cls_predictions = np.round(sigmoid(class_logits))
+    attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)]))
+
+    eval_dict = {
+        'precision': precision_score(labels, cls_predictions, average='micro'),
+        'recall': recall_score(labels, cls_predictions, average='micro'),
+        'f1': f1_score(labels, cls_predictions, average='micro'),
+        'attn_precision': precision_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'attn_recall': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'attn_f1': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
         'class_factor': class_factor[0],
         'attn_factor': attn_factor[0],
         # 'class_loss': class_loss,
@@ -73,7 +95,7 @@ def evaluate(model: Any, dataset: Any, hierarchical: bool, alexa: bool):
     train_labels = dataset['train'][0]['labels']
     eval_fnc = compute_binary_metrics if train_labels.dim() == 0 else compute_multilabel_metrics
     if alexa:
-        eval_fnc = compute_alexa_binary_metrics
+        eval_fnc = compute_alexa_binary_metrics if train_labels.dim() == 0 else compute_alexa_multilabel_metrics
         
     evaluation = eval_fnc(predictions)
     print(evaluation)
