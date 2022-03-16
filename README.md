@@ -18,7 +18,7 @@ View our final report [here](Submissions/CS224N_Project_Final_Report___Haas_and_
 
 ## Quickstart
 
-The `run.py` file in the `Code/src` directly contains the logic to load and train most models. The following are some examples:
+The `run.py` file in the `Code/src` directory contains the logic to load and train most models. The following are some examples:
 
 ### Training Models
 
@@ -26,9 +26,9 @@ All of the following examples can be run by setting the `--objective` flag to ei
 
 **Finetuning BERT, RoBERTa, or LEGAL-BERT**:
 
-Note that the name, i.e. `bert-base-uncased` must be a valid Hugging Face model identifier.
-
 `python run.py finetune bert-base-uncased --data path/to/data --objective binary`
+
+Note that the model name, i.e. `bert-base-uncased` must be a valid Hugging Face model identifier.
 
 **Training a Hierarchical Model with BERT, RoBERTa, or LEGAL-BERT as a Base**:
 
@@ -46,11 +46,11 @@ Note that the name, i.e. `bert-base-uncased` must be a valid Hugging Face model 
 
 ### Load a Model from Disk to Evaluate it on the Test Set
 
-`python run.py load path/to/model --base-model bert-base-uncased --data path/to/data --objective binary --evaluate`
+`python run.py load path/to/model --base-model bert-base-uncased --alexa --data path/to/data --objective binary --evaluate`
 
 ### Load a Model from Disk to further Finetune
 
-`python run.py loadtune path/to/model --base-model bert-base-uncased --data path/to/data --objective binary --evaluate`
+`python run.py loadtune path/to/model --base-model bert-base-uncased --hierarchical --data path/to/data --objective binary --evaluate`
 
  
 ## Automated Legal Expert Arbitrator (aLEXa)
