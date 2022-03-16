@@ -110,7 +110,8 @@ class aLEXa(nn.Module):
         scale_factors = self.max_parags / paragraph_attention_mask.sum(dim=-1)
         loss_weights = (paragraph_attention_mask * scale_factors).flatten()
         
-        attn_loss_fnc = nn.BCEWithLogitsLoss(weight=loss_weights)
+        # Weight positive examples heavily in the loss function due to few paragraphs being important
+        attn_loss_fnc = nn.BCEWithLogitsLoss(weight=loss_weights, pos_weight=Tensor([12]))
         loss = attn_loss_fnc(logits.flatten(), labels.flatten())
         return loss
 
@@ -118,11 +119,10 @@ class aLEXa(nn.Module):
                            attn_label_mask: Tensor) -> Tensor:
         """Computes attention forcing binary cross-entropy loss.
 
-        Weighs multi-task losses if attention labels avaialble, otherwise
+        Weighs multi-task losses if attention labels available, otherwise
         chooses classification cross-entropy loss.
 
         Args:
-            logits (Tensor): pre-sigmoid model output.
             class_loss (Tensor): classification loss.
             attn_loss (Tensor): attention forcing loss.
             attn_label_mask (Tensor): attention label mask.
