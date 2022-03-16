@@ -95,24 +95,28 @@ class aLEXa(nn.Module):
         return loss
 
     def compute_attention_forcing_loss(self, logits: Tensor, labels: Tensor,
-                                       paragraph_attention_mask: Tensor) -> Tensor:
+                                       paragraph_attention_mask: Tensor, scale: bool=False) -> Tensor:
         """Computes attention forcing binary cross-entropy loss.
 
         Args:
             logits (Tensor): pre-sigmoid model output.
             labels (Tensor): labels.
-            paragraph_attention_mask (Tensor): paragraph attention mask to mask loss scores
+            paragraph_attention_mask (Tensor): paragraph attention mask to mask loss scores.
+            scale (bool, optional): whether to weigh all cases equally.
 
         Returns:
             Tensor: loss.
         """
+        loss_weights = paragraph_attention_mask
+
         # Weigh every case equally and focus only on existing paragraphs
-        scale_factors = self.max_parags / paragraph_attention_mask.sum(dim=-1, keepdim=True)
-        loss_weights = (paragraph_attention_mask * scale_factors).flatten()
+        if scale:
+            scale_factors = self.max_parags / paragraph_attention_mask.sum(dim=-1, keepdim=True)
+            loss_weights = (paragraph_attention_mask * scale_factors).flatten()
         
         # Weight positive examples heavily in the loss function due to few paragraphs being important
         device = scale_factors.get_device()
-        pos_weight = Tensor([12]).to(device)
+        pos_weight = Tensor([2]).to(device)
         attn_loss_fnc = nn.BCEWithLogitsLoss(weight=loss_weights, pos_weight=pos_weight)
         loss = attn_loss_fnc(logits.flatten(), labels.flatten())
         return loss
@@ -200,12 +204,6 @@ class aLEXa(nn.Module):
         # Mask attention values and pool using sum across rows from (10, 64, 64) --> (10, 64)
         attention_matrix_mask = paragraph_attention_mask.unsqueeze(2) @ paragraph_attention_mask.unsqueeze(1)
         attn_output_weights = (attn_output_weights * attention_matrix_mask).sum(dim=1)
-       
-        #batch_size = case_embeddings.size()[0]
-        #attention_matrix_mask = paragraph_attention_mask.unsqueeze(2).expand(batch_size, self.max_parags, self.max_parags)
-        #attn_output_weights = (attn_output_weights * attention_matrix_mask).sum(dim=1)
-
-        # Check again ^^ probably wrong => see torch.permute(x, (0, 2, 1))
 
         # Reshape attention tensor to perform same transformation on all values -> (640, 1)
         attn_output_weights = attn_output_weights.contiguous().view(-1, 1).to(device)
