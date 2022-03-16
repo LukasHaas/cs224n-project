@@ -21,7 +21,7 @@ def compute_binary_metrics(eval_pred):
 def compute_alexa_binary_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     output, labels = eval_pred.predictions, eval_pred.label_ids
-    attn_labels, attn_mask, class_logits, attn_logits, attn_factor, class_factor = output
+    attn_labels, attn_mask, class_logits, attn_logits, attn_loss, class_loss = output
 
     attn_labels = attn_labels.astype(int)[attn_mask.astype(int)].flatten()
     cls_predictions = np.round(sigmoid(class_logits))
@@ -36,17 +36,15 @@ def compute_alexa_binary_metrics(eval_pred):
         'attn_precision': precision_score(attn_labels, attn_predictions, average='binary', zero_division=1),
         'attn_recall': recall_score(attn_labels, attn_predictions, average='binary', zero_division=1),
         'attn_f1': recall_score(attn_labels, attn_predictions, average='binary', zero_division=1),
-        'class_factor': class_factor[0],
-        'attn_factor': attn_factor[0],
-        # 'class_loss': class_loss,
-        # 'attn_loss': attn_loss
+        'class_loss': class_loss[0],
+        'attn_loss': attn_loss[0]
     }
     return eval_dict
 
 def compute_alexa_multilabel_metrics(eval_pred):
     """Called at the end of validation. Gives accuracy"""
     output, labels = eval_pred.predictions, eval_pred.label_ids
-    attn_labels, attn_mask, class_logits, attn_logits, attn_factor, class_factor = output
+    attn_labels, attn_mask, class_logits, attn_logits, attn_loss, class_loss = output
 
     attn_labels = attn_labels.astype(int)[attn_mask.astype(int)].flatten()
     cls_predictions = np.round(sigmoid(class_logits))
@@ -61,10 +59,8 @@ def compute_alexa_multilabel_metrics(eval_pred):
         'attn_precision': precision_score(attn_labels, attn_predictions, average='binary', zero_division=1),
         'attn_recall': recall_score(attn_labels, attn_predictions, average='binary', zero_division=1),
         'attn_f1': recall_score(attn_labels, attn_predictions, average='binary', zero_division=1),
-        'class_factor': class_factor[0],
-        'attn_factor': attn_factor[0],
-        # 'class_loss': class_loss,
-        # 'attn_loss': attn_loss
+        'class_loss': class_loss[0],
+        'attn_loss': attn_loss[0]
     }
     return eval_dict
 

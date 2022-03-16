@@ -116,7 +116,7 @@ class aLEXa(nn.Module):
         
         # Weight positive examples heavily in the loss function due to few paragraphs being important
         device = paragraph_attention_mask.get_device()
-        pos_weight = Tensor([2]).to(device)
+        pos_weight = Tensor([8]).to(device)
         attn_loss_fnc = nn.BCEWithLogitsLoss(weight=loss_weights, pos_weight=pos_weight)
         loss = attn_loss_fnc(logits.flatten(), labels.flatten())
         return loss
@@ -224,10 +224,9 @@ class aLEXa(nn.Module):
         attn_loss = self.compute_attention_forcing_loss(attn_logits, attention_labels, paragraph_attention_mask)
         class_loss = self.compute_classification_loss(class_logits, labels)
 
-        # Compute factor weights
-        class_factor = 1 / (2 * (self.class_weight ** 2))
-        attn_factor = 1 / (2 * (self.attn_forcing_weight ** 2))
-
         # Weigh losses and choose only classification loss when no attention forcing label avaialble
         loss = self.compute_total_loss(class_loss, attn_loss, attention_label_mask)
-        return loss, (attention_labels, attention_label_mask, class_logits, attn_logits, attn_factor, class_factor)
+
+        # Return relevant metrics
+        return loss, (attention_labels, attention_label_mask, class_logits, attn_logits,
+                      attn_loss.unsqueeze(0), class_loss.unsqueeze(0))
