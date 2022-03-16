@@ -45,7 +45,7 @@ logger.warning(f'Task: {args.function.capitalize()} {args.name} using {args.obje
 
 # Variables
 n_subset = int(args.sample) if args.sample is not None else None
-max_paragraph_len = 224 if args.hierarchical else 224
+max_paragraph_len = 224 if args.hierarchical or args.alexa else 512
 max_paragraphs = 48
 num_labels = 21 if args.objective == 'multilabel' else 1
 base_model = args.name if args.function == 'finetune' else args.base_model
