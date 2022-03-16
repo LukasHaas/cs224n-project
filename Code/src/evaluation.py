@@ -23,17 +23,18 @@ def compute_alexa_binary_metrics(eval_pred):
     output, labels = eval_pred.predictions, eval_pred.label_ids
     attn_labels, attn_mask, class_logits, attn_logits, attn_factor, class_factor = output
 
-    attn_labels = attn_labels.astype(int)[attn_mask.astype(int)]
+    attn_labels = attn_labels.astype(int)[attn_mask.astype(int)].flatten()
     cls_predictions = np.round(sigmoid(class_logits))
-    attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)]))
+    attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)])).flatten()
+    print('Total number of positive rationale predictions:', attn_predictions.sum())
 
     eval_dict = {
         'precision': precision_score(labels, cls_predictions, average='macro'),
         'recall': recall_score(labels, cls_predictions, average='macro'),
         'f1': f1_score(labels, cls_predictions, average='macro'),
-        'attn_precision': precision_score(attn_labels, attn_predictions, average='micro', zero_division=1),
-        'attn_recall': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
-        'attn_f1': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'attn_precision': precision_score(attn_labels, attn_predictions, zero_division=1),
+        'attn_recall': recall_score(attn_labels, attn_predictions, zero_division=1),
+        'attn_f1': recall_score(attn_labels, attn_predictions, zero_division=1),
         'class_factor': class_factor[0],
         'attn_factor': attn_factor[0],
         # 'class_loss': class_loss,
@@ -46,17 +47,18 @@ def compute_alexa_multilabel_metrics(eval_pred):
     output, labels = eval_pred.predictions, eval_pred.label_ids
     attn_labels, attn_mask, class_logits, attn_logits, attn_factor, class_factor = output
 
-    attn_labels = attn_labels.astype(int)[attn_mask.astype(int)]
+    attn_labels = attn_labels.astype(int)[attn_mask.astype(int)].flatten()
     cls_predictions = np.round(sigmoid(class_logits))
-    attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)]))
+    attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)])).flatten()
+    print('Total number of positive rationale predictions:', attn_predictions.sum())
 
     eval_dict = {
         'precision': precision_score(labels, cls_predictions, average='micro'),
         'recall': recall_score(labels, cls_predictions, average='micro'),
         'f1': f1_score(labels, cls_predictions, average='micro'),
-        'attn_precision': precision_score(attn_labels, attn_predictions, average='micro', zero_division=1),
-        'attn_recall': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
-        'attn_f1': recall_score(attn_labels, attn_predictions, average='micro', zero_division=1),
+        'attn_precision': precision_score(attn_labels, attn_predictions, zero_division=1),
+        'attn_recall': recall_score(attn_labels, attn_predictions, zero_division=1),
+        'attn_f1': recall_score(attn_labels, attn_predictions, zero_division=1),
         'class_factor': class_factor[0],
         'attn_factor': attn_factor[0],
         # 'class_loss': class_loss,
