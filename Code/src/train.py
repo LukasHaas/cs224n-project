@@ -103,7 +103,7 @@ def finetune_model(model: Any, dataset: DatasetDict, hierarchical: bool, alexa: 
         n_train_labels = 1 if train_labels.dim() == 1 else train_labels.size()[1]
         lw, pw = None, None
         if n_train_labels > 1:
-            lw, pw = compute_class_weights(dataset['train'], pos_weight=1.2)
+            lw, pw = compute_class_weights(dataset['train'], pos_weight=1.5)
 
         if hierarchical:
             loaded_model = HierarchicalModel(base_model, n_train_labels, max_paragraphs, max_paragraph_len,
