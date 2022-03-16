@@ -107,12 +107,12 @@ class aLEXa(nn.Module):
         Returns:
             Tensor: loss.
         """
-        loss_weights = paragraph_attention_mask
-
         # Weigh every case equally and focus only on existing paragraphs
         if scale:
             scale_factors = self.max_parags / paragraph_attention_mask.sum(dim=-1, keepdim=True)
             loss_weights = (paragraph_attention_mask * scale_factors).flatten()
+        else:
+            loss_weights = paragraph_attention_mask.flatten()
         
         # Weight positive examples heavily in the loss function due to few paragraphs being important
         device = paragraph_attention_mask.get_device()

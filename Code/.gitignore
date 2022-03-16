@@ -5,6 +5,7 @@ EN_test_Anon/*
 EN_train/*
 EN_train_Anon/*
 *.json
+*.jsonl
 !spec/*.json
 mlruns/*
 runs/*

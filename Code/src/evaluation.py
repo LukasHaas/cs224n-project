@@ -27,6 +27,7 @@ def compute_alexa_binary_metrics(eval_pred):
     cls_predictions = np.round(sigmoid(class_logits))
     attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)])).flatten()
     print('Total number of positive rationale predictions:', attn_predictions.sum())
+    print(f'Share of positive predictions: {100 * attn_predictions.sum() / len(attn_predictions):.1f} %')
 
     eval_dict = {
         'precision': precision_score(labels, cls_predictions, average='macro'),
@@ -51,6 +52,7 @@ def compute_alexa_multilabel_metrics(eval_pred):
     cls_predictions = np.round(sigmoid(class_logits))
     attn_predictions = np.round(sigmoid(attn_logits[attn_mask.astype(int)])).flatten()
     print('Total number of positive rationale predictions:', attn_predictions.sum())
+    print(f'Share of positive predictions: {100 * attn_predictions.sum() / len(attn_predictions):.1f} %')
 
     eval_dict = {
         'precision': precision_score(labels, cls_predictions, average='micro'),
