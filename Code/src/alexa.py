@@ -77,7 +77,6 @@ class aLEXa(nn.Module):
 
         # Loss functions
         self.class_loss_fnc = nn.BCEWithLogitsLoss(weight=label_weights, pos_weight=pos_weights)
-        self.attn_loss_fnc = nn.BCEWithLogitsLoss()
 
     def compute_classification_loss(self, logits: Tensor, labels: Tensor) -> Tensor:
         """Computes classification binary cross-entropy loss.
@@ -95,17 +94,24 @@ class aLEXa(nn.Module):
         loss = self.class_loss_fnc(logits, labels)
         return loss
 
-    def compute_attention_forcing_loss(self, logits: Tensor, labels: Tensor) -> Tensor:
+    def compute_attention_forcing_loss(self, logits: Tensor, labels: Tensor,
+                                       paragraph_attention_mask: Tensor) -> Tensor:
         """Computes attention forcing binary cross-entropy loss.
 
         Args:
             logits (Tensor): pre-sigmoid model output.
             labels (Tensor): labels.
+            paragraph_attention_mask (Tensor): paragraph attention mask to mask loss scores
 
         Returns:
             Tensor: loss.
         """
-        loss = self.attn_loss_fnc(logits, labels)
+        # Weigh every case equally and focus only on existing paragraphs
+        scale_factors = self.max_parags / paragraph_attention_mask.sum(dim=-1)
+        loss_weights = (paragraph_attention_mask * scale_factors).flatten()
+        
+        attn_loss_fnc = nn.BCEWithLogitsLoss(weight=loss_weights)
+        loss = attn_loss_fnc(logits.flatten(), labels.flatten())
         return loss
 
     def compute_total_loss(self, class_loss: Tensor, attn_loss: Tensor,
@@ -189,8 +195,9 @@ class aLEXa(nn.Module):
         # Pool case embeddings (choose first embedding -> CLS token) --> (10, 768)
         case_embeddings = case_embeddings[:, 0]
 
-        # Pool paragraph attention values --> (10, 64)
-        attn_output_weights = attn_output_weights.sum(dim=1)
+        # Mask attention values and pool using sum across rows from (10, 64, 64) --> (10, 64)
+        attn_output_weights = torch.permute(attn_output_weights, (0, 2, 1)) * paragraph_attention_mask
+        attn_output_weights = torch.permute(attn_output_weights, (0, 2, 1)).sum(dim=1)
 
         # Reshape attention tensor to perform same transformation on all values -> (640, 1)
         attn_output_weights = attn_output_weights.contiguous().view(-1, 1).to(device)
@@ -198,7 +205,7 @@ class aLEXa(nn.Module):
         # Linear transform attention values --> (640, 1)
         attn_logits = self.attn_head(attn_output_weights)
 
-        # Reshape attention tensor back to original form
+        # Reshape attention tensor back to original form --> (10, 64)
         attn_logits = attn_logits.contiguous().view(-1, self.max_parags).to(device)
 
         # Dropout
@@ -208,13 +215,13 @@ class aLEXa(nn.Module):
         class_logits = self.cls_head(case_embeddings)
         
         # Compute losses
-        attn_loss = self.compute_attention_forcing_loss(attn_logits, attention_labels) * attention_label_mask
+        attn_loss = self.compute_attention_forcing_loss(attn_logits, attention_labels, paragraph_attention_mask)
         class_loss = self.compute_classification_loss(class_logits, labels)
 
         # Compute Scalar Weights
         class_factor = 1 / (2 * (self.class_weight ** 2))
         attn_factor = 1 / (2 * (self.attn_forcing_weight ** 2))
 
-        # Weigh losses
+        # Weigh losses and choose only classification loss when no attention forcing label avaialble
         loss = self.compute_total_loss(class_loss, attn_loss, attention_label_mask)
         return loss, (attention_labels, attention_label_mask, class_logits, attn_logits, attn_factor, class_factor)
