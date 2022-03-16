@@ -198,9 +198,14 @@ class aLEXa(nn.Module):
         case_embeddings = case_embeddings[:, 0]
 
         # Mask attention values and pool using sum across rows from (10, 64, 64) --> (10, 64)
-        batch_size = case_embeddings.size()[0]
-        attention_matrix_mask = paragraph_attention_mask.unsqueeze(2).expand(batch_size, self.max_parags, self.max_parags)
+        attention_matrix_mask = paragraph_attention_mask.unsqueeze(2) @ paragraph_attention_mask.unsqueeze(1)
         attn_output_weights = (attn_output_weights * attention_matrix_mask).sum(dim=1)
+       
+        #batch_size = case_embeddings.size()[0]
+        #attention_matrix_mask = paragraph_attention_mask.unsqueeze(2).expand(batch_size, self.max_parags, self.max_parags)
+        #attn_output_weights = (attn_output_weights * attention_matrix_mask).sum(dim=1)
+
+        # Check again ^^ probably wrong => see torch.permute(x, (0, 2, 1))
 
         # Reshape attention tensor to perform same transformation on all values -> (640, 1)
         attn_output_weights = attn_output_weights.contiguous().view(-1, 1).to(device)
@@ -221,7 +226,7 @@ class aLEXa(nn.Module):
         attn_loss = self.compute_attention_forcing_loss(attn_logits, attention_labels, paragraph_attention_mask)
         class_loss = self.compute_classification_loss(class_logits, labels)
 
-        # Compute Scalar Weights
+        # Compute factor weights
         class_factor = 1 / (2 * (self.class_weight ** 2))
         attn_factor = 1 / (2 * (self.attn_forcing_weight ** 2))
 
